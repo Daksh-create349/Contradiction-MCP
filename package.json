@@ -5,8 +5,8 @@
     "contradiction-mcp"
   ],
   "scripts": {
-    "build": "npm --prefix contradiction-mcp run build",
-    "start": "npm --prefix contradiction-mcp run start",
+    "build": "cd contradiction-mcp && npm install && npm run build",
+    "start": "node contradiction-mcp/dist/index.js",
     "dev": "npm --prefix contradiction-mcp run dev",
     "typecheck": "npm --prefix contradiction-mcp run typecheck",
     "lint": "npm --prefix contradiction-mcp run lint",
