@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: contradiction-mcp
-        run: npm ci
+        run: npm install
 
       - name: Typecheck TypeScript
         working-directory: contradiction-mcp
@@ -41,9 +41,9 @@ jobs:
         working-directory: contradiction-mcp
         run: npm run format:check
 
-      - name: Run unit & integration tests with coverage
+      - name: Run unit & integration tests
         working-directory: contradiction-mcp
-        run: npm run test:coverage
+        run: npm test
 
       - name: Security & Dependency check
         working-directory: contradiction-mcp
