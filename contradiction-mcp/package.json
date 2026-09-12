@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "contradiction-mcp": "./bin/cli.js"
+    "contradiction-mcp": "bin/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/storage/migrations && cp src/storage/migrations/*.sql dist/storage/migrations/",
