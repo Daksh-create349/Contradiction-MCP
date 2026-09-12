@@ -1,6 +1,9 @@
 {
   "name": "contradiction-mcp-workspace",
   "private": true,
+  "workspaces": [
+    "contradiction-mcp"
+  ],
   "scripts": {
     "build": "npm --prefix contradiction-mcp run build",
     "start": "npm --prefix contradiction-mcp run start",
