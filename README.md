@@ -9,9 +9,11 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white&style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![MCP Specification](https://img.shields.io/badge/MCP-2.0.0-8A2BE2.svg?logo=anthropic&logoColor=white&style=flat-square)](https://modelcontextprotocol.io/)
-[![Vitest Tests](https://img.shields.io/badge/Tests-169%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
+[![Vitest Tests](https://img.shields.io/badge/Tests-170%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
+[![Glama Score](https://img.shields.io/badge/Glama%20Score-100%25-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP/admin/score)
+[![View on Glama](https://glama.ai/mcp/servers/badge/Daksh-create349/Contradiction-MCP)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
 
 <p align="center">
   <a href="#the-problem-it-solves">Problem</a> •
