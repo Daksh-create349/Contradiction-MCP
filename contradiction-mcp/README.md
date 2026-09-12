@@ -16,6 +16,7 @@
 <p align="center">
   <a href="#the-problem-it-solves">Problem</a> •
   <a href="#core-capabilities">Capabilities</a> •
+  <a href="#limitations--known-edge-cases">Limitations</a> •
   <a href="#system-architecture">Architecture</a> •
   <a href="#one-command-quickstart-all-ides">Quickstart</a> •
   <a href="#mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
@@ -25,6 +26,14 @@
 </p>
 
 </div>
+
+---
+
+> [!NOTE]
+>
+> ### 🚧 Project Status: Active Development (v0.2.0)
+>
+> **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
 
 ---
 
@@ -53,15 +62,39 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
 - **Deterministic SemVer Mathematics**: Employs rigorous version range satisfaction algebra rather than naive string comparisons.
 - **Multi-Source Ingestion Pipeline**:
   - **GitHub Connector**: Analyzes runtime engines, Dockerfiles, GitHub Actions workflows, and READMEs.
-  - **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, and PDF documents with exact page- and line-numbered evidence citations.
+  - **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, RFC822 (`.eml`), and OpenXML (`.docx`) documents with exact page- and line-numbered evidence citations.
   - **Public Website Connector**: Web crawler hardened with multi-layer SSRF protection against loopback, private IPv4/IPv6 CIDRs, and cloud metadata endpoints (`169.254.169.254`).
 - **Scoring & Advisory Intelligence**:
   - `AuthorityScorer`: Ranks conflicting claims based on source hierarchy and origin credibility.
   - `FreshnessScorer`: Applies exponential half-life time decay models.
-  - `EvidenceEvaluator`: Quantifies citation directness and snippet quality.
+  * `EvidenceEvaluator`: Quantifies citation directness and snippet quality.
   - `ResolutionAdvisor`: Generates actionable resolution recommendations without mutating state without operator consent.
 - **Review & Resolution Workflows**: Full lifecycle transitions (`OPEN` → `REVIEWED` → `RESOLVED` / `DISMISSED` → `REOPENED`) backed by append-only audit histories.
 - **Dual Transport Architecture**: Operates over standard **Stdio** (for Claude Desktop, Google Antigravity, Cursor) or **Streamable HTTP/SSE** with Bearer API key authentication and sliding rate limiting.
+
+---
+
+## Limitations & Known Edge Cases
+
+While Contradiction MCP is battle-tested on cross-document and cross-source consistency audits, users should be aware of current development limitations:
+
+1. **Intra-Manifest Hierarchical Collisions (Deeply Nested JSON/YAML)**:
+   - **Behavior**: Key-value extraction flattens object hierarchies into leaf tokens. In complex single manifests (such as Kubernetes deployments), parameters sharing identical leaf keys across distinct blocks (e.g., `readinessProbe.initialDelaySeconds` vs `livenessProbe.initialDelaySeconds`, or container `resources.requests.cpu` vs `resources.limits.cpu`) can trigger intra-file candidate comparisons and false-positive warnings.
+   - **Mitigation**: Focus analysis on cross-document source verification or filter by external source boundaries. Hierarchical path-aware namespace isolation is currently under active development.
+
+2. **Heading & Brand Entity Extraction**:
+   - **Behavior**: Document headings containing version-like keywords (e.g., `"2. Node.js V8 Engine Upgrade"`) may occasionally extract the engine brand or section numeral as a software version string, triggering local version mismatch warnings against runtime version specifications.
+   - **Mitigation**: Structure specifications using standard tables, key-value mappings, or explicit parameter declarations.
+
+3. **Static Specifications vs Live Network State**:
+   - **Behavior**: The engine analyzes declared assertions across files, repositories, and documentation. It does not probe live runtime sockets, ephemeral cloud infrastructure, or running processes unless synced as structured state documents.
+
+4. **Candidate Pair Scalability on Giant Monoliths**:
+   - **Behavior**: Files producing >1,000 claims increase pairwise combinations quadratically ($O(N^2)$ worst-case prior to similarity filtering).
+   - **Mitigation**: Bounded file size guards (`MAX_FILE_SIZE_BYTES`, default 10MB) prevent memory exhaust. Partition giant monoliths into modular architecture specs.
+
+5. **Language & Syntax Scope**:
+   - **Behavior**: Extraction heuristics, unit normalizers (e.g., `GB`, `MB`, `ms`), and predicate patterns are currently tuned for English documentation and standard DevOps/software configuration keys. Multi-lingual natural language extraction without standard keying is planned for future releases.
 
 ---
 

@@ -16,6 +16,7 @@
 <p align="center">
   <a href="#the-problem-it-solves">Problem</a> •
   <a href="#core-capabilities">Capabilities</a> •
+  <a href="#limitations--known-edge-cases">Limitations</a> •
   <a href="#system-architecture">Architecture</a> •
   <a href="#one-command-quickstart-all-ides">Quickstart</a> •
   <a href="#mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
@@ -28,14 +29,22 @@
 
 ---
 
+> [!NOTE]
+>
+> ### 🚧 Project Status: Active Development (v0.2.0)
+>
+> **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
+
+---
+
 ## The Problem It Solves
 
 Modern engineering ecosystems rely on fragmented, uncoordinated sources of truth:
 
-* **Code Repositories**: `package.json`, `Dockerfile`, CI/CD workflows (`.github/workflows/*.yml`)
-* **Deployment Manifests**: Kubernetes YAML, Helm values, cloud environment configurations
-* **Technical Documentation**: Architecture guides, runbooks, developer setup portals, READMEs
-* **Public Endpoints**: OpenAPI/Swagger schemas, status feeds, live web documentation
+- **Code Repositories**: `package.json`, `Dockerfile`, CI/CD workflows (`.github/workflows/*.yml`)
+- **Deployment Manifests**: Kubernetes YAML, Helm values, cloud environment configurations
+- **Technical Documentation**: Architecture guides, runbooks, developer setup portals, READMEs
+- **Public Endpoints**: OpenAPI/Swagger schemas, status feeds, live web documentation
 
 When these systems diverge—for example, a Kubernetes manifest deploying Node.js 22 while technical documentation instructs developers to run Node.js 18, or conflicting database engine versions across staging and production—silent regressions, deploy failures, and hallucinations in LLM reasoning occur.
 
@@ -45,23 +54,47 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
 
 ## Core Capabilities
 
-* **Zero Mocks**: Real embedded SQLite with Write-Ahead Logging (WAL), real filesystem I/O with directory containment guards, and real HTTP fetchers with pre-flight DNS validation.
-* **Context-Aware Contradiction Engine**: Eliminates false positives by understanding semantic contexts:
-  * **Environments**: `production` vs `staging` vs `development`
-  * **Scopes**: `file` vs `deployment` vs `cluster`
-  * **Roles**: `source_of_truth` vs `deployment` vs `documentation`
-* **Deterministic SemVer Mathematics**: Employs rigorous version range satisfaction algebra rather than naive string comparisons.
-* **Multi-Source Ingestion Pipeline**:
-  * **GitHub Connector**: Analyzes runtime engines, Dockerfiles, GitHub Actions workflows, and READMEs.
-  * **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, and PDF documents with exact page- and line-numbered evidence citations.
-  * **Public Website Connector**: Web crawler hardened with multi-layer SSRF protection against loopback, private IPv4/IPv6 CIDRs, and cloud metadata endpoints (`169.254.169.254`).
-* **Scoring & Advisory Intelligence**:
-  * `AuthorityScorer`: Ranks conflicting claims based on source hierarchy and origin credibility.
-  * `FreshnessScorer`: Applies exponential half-life time decay models.
-  * `EvidenceEvaluator`: Quantifies citation directness and snippet quality.
-  * `ResolutionAdvisor`: Generates actionable resolution recommendations without mutating state without operator consent.
-* **Review & Resolution Workflows**: Full lifecycle transitions (`OPEN` → `REVIEWED` → `RESOLVED` / `DISMISSED` → `REOPENED`) backed by append-only audit histories.
-* **Dual Transport Architecture**: Operates over standard **Stdio** (for Claude Desktop, Google Antigravity, Cursor) or **Streamable HTTP/SSE** with Bearer API key authentication and sliding rate limiting.
+- **Zero Mocks**: Real embedded SQLite with Write-Ahead Logging (WAL), real filesystem I/O with directory containment guards, and real HTTP fetchers with pre-flight DNS validation.
+- **Context-Aware Contradiction Engine**: Eliminates false positives by understanding semantic contexts:
+  - **Environments**: `production` vs `staging` vs `development`
+  - **Scopes**: `file` vs `deployment` vs `cluster`
+  - **Roles**: `source_of_truth` vs `deployment` vs `documentation`
+- **Deterministic SemVer Mathematics**: Employs rigorous version range satisfaction algebra rather than naive string comparisons.
+- **Multi-Source Ingestion Pipeline**:
+  - **GitHub Connector**: Analyzes runtime engines, Dockerfiles, GitHub Actions workflows, and READMEs.
+  - **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, RFC822 (`.eml`), and OpenXML (`.docx`) documents with exact page- and line-numbered evidence citations.
+  - **Public Website Connector**: Web crawler hardened with multi-layer SSRF protection against loopback, private IPv4/IPv6 CIDRs, and cloud metadata endpoints (`169.254.169.254`).
+- **Scoring & Advisory Intelligence**:
+  - `AuthorityScorer`: Ranks conflicting claims based on source hierarchy and origin credibility.
+  - `FreshnessScorer`: Applies exponential half-life time decay models.
+  - `EvidenceEvaluator`: Quantifies citation directness and snippet quality.
+  - `ResolutionAdvisor`: Generates actionable resolution recommendations without mutating state without operator consent.
+- **Review & Resolution Workflows**: Full lifecycle transitions (`OPEN` → `REVIEWED` → `RESOLVED` / `DISMISSED` → `REOPENED`) backed by append-only audit histories.
+- **Dual Transport Architecture**: Operates over standard **Stdio** (for Claude Desktop, Google Antigravity, Cursor) or **Streamable HTTP/SSE** with Bearer API key authentication and sliding rate limiting.
+
+---
+
+## Limitations & Known Edge Cases
+
+While Contradiction MCP is battle-tested on cross-document and cross-source consistency audits, users should be aware of current development limitations:
+
+1. **Intra-Manifest Hierarchical Collisions (Deeply Nested JSON/YAML)**:
+   - **Behavior**: Key-value extraction flattens object hierarchies into leaf tokens. In complex single manifests (such as Kubernetes deployments), parameters sharing identical leaf keys across distinct blocks (e.g., `readinessProbe.initialDelaySeconds` vs `livenessProbe.initialDelaySeconds`, or container `resources.requests.cpu` vs `resources.limits.cpu`) can trigger intra-file candidate comparisons and false-positive warnings.
+   - **Mitigation**: Focus analysis on cross-document source verification or filter by external source boundaries. Hierarchical path-aware namespace isolation is currently under active development.
+
+2. **Heading & Brand Entity Extraction**:
+   - **Behavior**: Document headings containing version-like keywords (e.g., `"2. Node.js V8 Engine Upgrade"`) may occasionally extract the engine brand or section numeral as a software version string, triggering local version mismatch warnings against runtime version specifications.
+   - **Mitigation**: Structure specifications using standard tables, key-value mappings, or explicit parameter declarations.
+
+3. **Static Specifications vs Live Network State**:
+   - **Behavior**: The engine analyzes declared assertions across files, repositories, and documentation. It does not probe live runtime sockets, ephemeral cloud infrastructure, or running processes unless synced as structured state documents.
+
+4. **Candidate Pair Scalability on Giant Monoliths**:
+   - **Behavior**: Files producing >1,000 claims increase pairwise combinations quadratically ($O(N^2)$ worst-case prior to similarity filtering).
+   - **Mitigation**: Bounded file size guards (`MAX_FILE_SIZE_BYTES`, default 10MB) prevent memory exhaust. Partition giant monoliths into modular architecture specs.
+
+5. **Language & Syntax Scope**:
+   - **Behavior**: Extraction heuristics, unit normalizers (e.g., `GB`, `MB`, `ms`), and predicate patterns are currently tuned for English documentation and standard DevOps/software configuration keys. Multi-lingual natural language extraction without standard keying is planned for future releases.
 
 ---
 
@@ -177,9 +210,9 @@ If you prefer manual configuration, add the following configuration block to you
 
 ### 1. Claude Desktop (`claude_desktop_config.json`)
 
-* **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-* **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-* **Linux**: `~/.config/Claude/claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 ```json
 {
@@ -200,8 +233,8 @@ If you prefer manual configuration, add the following configuration block to you
 
 ### 2. Google Antigravity (`mcp_config.json`)
 
-* **Global**: `~/.gemini/config/mcp_config.json`
-* **Workspace**: `<workspace-root>/.agents/mcp_config.json`
+- **Global**: `~/.gemini/config/mcp_config.json`
+- **Workspace**: `<workspace-root>/.agents/mcp_config.json`
 
 ```json
 {
@@ -256,41 +289,41 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ### Active MCP Tools (21)
 
-| Tool Name | Description | Key Arguments |
-| :--- | :--- | :--- |
-| `health_check` | Checks server runtime health, database latency, and entity counts | `{}` |
-| `analyze_claim_pair` | Runs pairwise contradiction analysis between two claim IDs | `claimIdA`, `claimIdB` |
-| `scan_for_contradictions` | Scans the full knowledge base for conflicting assertions | `limit`, `minSeverity` |
-| `scan_claim_for_contradictions`| Incrementally scans candidate pairs for a specific claim | `claimId` |
-| `list_contradictions` | Lists contradictions filtered by status and severity | `status`, `severity`, `limit` |
-| `get_contradiction` | Retrieves detailed contradiction record with claims and sources | `contradictionId` |
-| `explain_claim_relationship` | Explains contextual factors (env, scope, role, SemVer) | `claimIdA`, `claimIdB` |
-| `advise_resolution` | Heuristically compares authority, freshness, and evidence | `contradictionId` |
-| `review_contradiction` | Transitions contradiction to `REVIEWED` status | `contradictionId`, `reviewedBy`, `notes` |
-| `resolve_contradiction` | Resolves contradiction by selecting canonical claim | `contradictionId`, `resolvedBy`, `reason` |
-| `dismiss_contradiction` | Dismisses false positives or intentional differences | `contradictionId`, `dismissedBy`, `reason` |
-| `reopen_contradiction` | Reopens a previously resolved or dismissed contradiction | `contradictionId`, `reopenedBy`, `reason` |
-| `get_contradiction_history` | Returns chronological, immutable audit trail of transitions | `contradictionId` |
-| `get_claim_history` | Returns value history and supersessions for a specific claim | `externalId` |
-| `list_connectors` | Lists registered ingestion connectors and capabilities | `{}` |
-| `test_github_connection` | Tests GitHub connectivity and rate-limit headroom | `owner`, `repo` |
-| `sync_github_repository` | Ingests package.json, Dockerfile, README, and workflows | `owner`, `repo`, `branch` |
-| `sync_document` | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files | `filePath`, `subject`, `sourceRole` |
-| `sync_website` | Ingests web URL with pre-flight SSRF protection | `url`, `subject`, `maxDepth` |
-| `sync_source` | Synchronizes an existing registered source by ID | `sourceId` |
-| `sync_sources` | Bounded-concurrency batch synchronization | `sourceIds` |
+| Tool Name                       | Description                                                       | Key Arguments                              |
+| :------------------------------ | :---------------------------------------------------------------- | :----------------------------------------- |
+| `health_check`                  | Checks server runtime health, database latency, and entity counts | `{}`                                       |
+| `analyze_claim_pair`            | Runs pairwise contradiction analysis between two claim IDs        | `claimIdA`, `claimIdB`                     |
+| `scan_for_contradictions`       | Scans the full knowledge base for conflicting assertions          | `limit`, `minSeverity`                     |
+| `scan_claim_for_contradictions` | Incrementally scans candidate pairs for a specific claim          | `claimId`                                  |
+| `list_contradictions`           | Lists contradictions filtered by status and severity              | `status`, `severity`, `limit`              |
+| `get_contradiction`             | Retrieves detailed contradiction record with claims and sources   | `contradictionId`                          |
+| `explain_claim_relationship`    | Explains contextual factors (env, scope, role, SemVer)            | `claimIdA`, `claimIdB`                     |
+| `advise_resolution`             | Heuristically compares authority, freshness, and evidence         | `contradictionId`                          |
+| `review_contradiction`          | Transitions contradiction to `REVIEWED` status                    | `contradictionId`, `reviewedBy`, `notes`   |
+| `resolve_contradiction`         | Resolves contradiction by selecting canonical claim               | `contradictionId`, `resolvedBy`, `reason`  |
+| `dismiss_contradiction`         | Dismisses false positives or intentional differences              | `contradictionId`, `dismissedBy`, `reason` |
+| `reopen_contradiction`          | Reopens a previously resolved or dismissed contradiction          | `contradictionId`, `reopenedBy`, `reason`  |
+| `get_contradiction_history`     | Returns chronological, immutable audit trail of transitions       | `contradictionId`                          |
+| `get_claim_history`             | Returns value history and supersessions for a specific claim      | `externalId`                               |
+| `list_connectors`               | Lists registered ingestion connectors and capabilities            | `{}`                                       |
+| `test_github_connection`        | Tests GitHub connectivity and rate-limit headroom                 | `owner`, `repo`                            |
+| `sync_github_repository`        | Ingests package.json, Dockerfile, README, and workflows           | `owner`, `repo`, `branch`                  |
+| `sync_document`                 | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files              | `filePath`, `subject`, `sourceRole`        |
+| `sync_website`                  | Ingests web URL with pre-flight SSRF protection                   | `url`, `subject`, `maxDepth`               |
+| `sync_source`                   | Synchronizes an existing registered source by ID                  | `sourceId`                                 |
+| `sync_sources`                  | Bounded-concurrency batch synchronization                         | `sourceIds`                                |
 
 ### Active MCP Resources (4)
 
-* `health://metrics` — Static snapshot of uptime, tool invocations, and contradiction tallies.
-* `contradiction://{id}` — Dynamic resource returning live contradiction state for a specific ID.
-* `claim://{id}` — Dynamic resource returning factual claim details, context, and provenance.
-* `source://{id}` — Dynamic resource returning source metadata, type, and trust score.
+- `health://metrics` — Static snapshot of uptime, tool invocations, and contradiction tallies.
+- `contradiction://{id}` — Dynamic resource returning live contradiction state for a specific ID.
+- `claim://{id}` — Dynamic resource returning factual claim details, context, and provenance.
+- `source://{id}` — Dynamic resource returning source metadata, type, and trust score.
 
 ### Active MCP Prompts (2)
 
-* `investigate_contradiction` — Interactive prompt guiding contradiction investigation, context analysis, and resolution.
-* `review_source_consistency` — Agent prompt guiding systematic cross-source consistency audits.
+- `investigate_contradiction` — Interactive prompt guiding contradiction investigation, context analysis, and resolution.
+- `review_source_consistency` — Agent prompt guiding systematic cross-source consistency audits.
 
 ---
 
@@ -300,6 +333,7 @@ Connect distributed agents or team members to a centralized server daemon:
 <summary><b>1. Ingesting a Document (<code>sync_document</code>)</b></summary>
 
 **Request**:
+
 ```json
 {
   "filePath": "/tmp/deployment_spec.json",
@@ -311,6 +345,7 @@ Connect distributed agents or team members to a centralized server daemon:
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -319,17 +354,20 @@ Connect distributed agents or team members to a centralized server daemon:
   "claimsUpdated": 0
 }
 ```
+
 </details>
 
 <details>
 <summary><b>2. Scanning for Contradictions (<code>scan_for_contradictions</code>)</b></summary>
 
 **Request**:
+
 ```json
 {}
 ```
 
 **Response**:
+
 ```json
 {
   "status": "completed",
@@ -348,12 +386,14 @@ Connect distributed agents or team members to a centralized server daemon:
   ]
 }
 ```
+
 </details>
 
 <details>
 <summary><b>3. Resolution Advice (<code>advise_resolution</code>)</b></summary>
 
 **Request**:
+
 ```json
 {
   "contradictionId": "2f1691be-9c1f-4e93-a86a-ef0c0ba54f9d"
@@ -361,6 +401,7 @@ Connect distributed agents or team members to a centralized server daemon:
 ```
 
 **Response**:
+
 ```json
 {
   "recommendedClaimId": "a779fa4b-c680-482c-8f31-daf470aaaab7",
@@ -371,6 +412,7 @@ Connect distributed agents or team members to a centralized server daemon:
   "authorityScoreB": 0.85
 }
 ```
+
 </details>
 
 ---
@@ -431,47 +473,47 @@ main();
 
 ## Complete Command Reference
 
-| Command | Description |
-| :--- | :--- |
-| `npm run build` | Compiles TypeScript and packages SQL migration scripts |
-| `npm start` | Launches compiled production server (`node dist/index.js`) |
-| `npm run dev` | Runs development server with on-the-fly TypeScript execution |
-| `npm test` | Runs complete Vitest test suite (**169 tests across 23 files**) |
-| `npm run test:coverage` | Generates detailed V8 code coverage report |
-| `npm run verify` | Runs all 62 end-to-end verification gates (protocol, security, heuristics) |
-| `npm run demo` | Executes live 17-step end-to-end demonstration scenario |
-| `npm run smoke` | Launches compiled server and verifies real MCP Stdio connectivity |
-| `npm run live-test` | Runs stdio smoke tests followed by Streamable HTTP integration suite |
-| `npm run typecheck` | Validates TypeScript static typing (`tsc --noEmit`) with 0 errors |
-| `npm run lint` | Lints codebase with ESLint 9 Flat Config (0 errors, 0 warnings) |
-| `npm run format:check` | Verifies code formatting against Prettier |
-| `npm run format` | Auto-formats all code using Prettier |
-| `npm run install-mcp` | Automatically configures MCP settings across Antigravity, Cursor, and Claude |
-| `npm run migrate` | Executes pending SQLite database schema migrations |
-| `npm run seed` | Seeds database with realistic demonstration claims and sources |
-| `npm run backup` | Creates zero-downtime online SQLite backup in `backups/` |
-| `npm run restore <path>` | Restores database from a designated backup archive |
-| `npm run health` | Queries system health status and outputs operational JSON |
-| `npm run security:check` | Runs `npm audit` to inspect dependency security vulnerabilities |
+| Command                  | Description                                                                  |
+| :----------------------- | :--------------------------------------------------------------------------- |
+| `npm run build`          | Compiles TypeScript and packages SQL migration scripts                       |
+| `npm start`              | Launches compiled production server (`node dist/index.js`)                   |
+| `npm run dev`            | Runs development server with on-the-fly TypeScript execution                 |
+| `npm test`               | Runs complete Vitest test suite (**169 tests across 23 files**)              |
+| `npm run test:coverage`  | Generates detailed V8 code coverage report                                   |
+| `npm run verify`         | Runs all 62 end-to-end verification gates (protocol, security, heuristics)   |
+| `npm run demo`           | Executes live 17-step end-to-end demonstration scenario                      |
+| `npm run smoke`          | Launches compiled server and verifies real MCP Stdio connectivity            |
+| `npm run live-test`      | Runs stdio smoke tests followed by Streamable HTTP integration suite         |
+| `npm run typecheck`      | Validates TypeScript static typing (`tsc --noEmit`) with 0 errors            |
+| `npm run lint`           | Lints codebase with ESLint 9 Flat Config (0 errors, 0 warnings)              |
+| `npm run format:check`   | Verifies code formatting against Prettier                                    |
+| `npm run format`         | Auto-formats all code using Prettier                                         |
+| `npm run install-mcp`    | Automatically configures MCP settings across Antigravity, Cursor, and Claude |
+| `npm run migrate`        | Executes pending SQLite database schema migrations                           |
+| `npm run seed`           | Seeds database with realistic demonstration claims and sources               |
+| `npm run backup`         | Creates zero-downtime online SQLite backup in `backups/`                     |
+| `npm run restore <path>` | Restores database from a designated backup archive                           |
+| `npm run health`         | Queries system health status and outputs operational JSON                    |
+| `npm run security:check` | Runs `npm audit` to inspect dependency security vulnerabilities              |
 
 ---
 
 ## Environment Variables
 
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `NODE_ENV` | `development` | Runtime mode: `development`, `test`, or `production` |
-| `DATABASE_PATH` | `./data/contradiction.db` | Path to SQLite database file or `:memory:` |
-| `MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
-| `HTTP_PORT` | `3000` | Port for Streamable HTTP server when `MCP_TRANSPORT=http` |
-| `HTTP_HOST` | `127.0.0.1` | Binding address for HTTP daemon (DNS rebinding guarded) |
-| `API_KEY` | _(optional)_ | Secret bearer token required for HTTP authentication |
-| `GITHUB_TOKEN` | _(optional)_ | Personal Access Token to prevent GitHub API rate limits |
-| `LOG_LEVEL` | `error` | Logging level: `debug`, `info`, `warn`, `error` |
-| `ALLOWED_ROOTS` | `.` | Comma-separated directory paths permitted for file ingestion |
-| `MAX_FILE_SIZE_BYTES` | `10485760` (10MB) | Maximum file size allowed for document ingestion |
-| `RATE_LIMIT_MAX` | `100` | Maximum requests permitted per sliding time window |
-| `RATE_LIMIT_WINDOW_MS`| `60000` (1 min) | Sliding rate limiter window in milliseconds |
+| Variable               | Default                   | Description                                                  |
+| :--------------------- | :------------------------ | :----------------------------------------------------------- |
+| `NODE_ENV`             | `development`             | Runtime mode: `development`, `test`, or `production`         |
+| `DATABASE_PATH`        | `./data/contradiction.db` | Path to SQLite database file or `:memory:`                   |
+| `MCP_TRANSPORT`        | `stdio`                   | Transport mode: `stdio` or `http`                            |
+| `HTTP_PORT`            | `3000`                    | Port for Streamable HTTP server when `MCP_TRANSPORT=http`    |
+| `HTTP_HOST`            | `127.0.0.1`               | Binding address for HTTP daemon (DNS rebinding guarded)      |
+| `API_KEY`              | _(optional)_              | Secret bearer token required for HTTP authentication         |
+| `GITHUB_TOKEN`         | _(optional)_              | Personal Access Token to prevent GitHub API rate limits      |
+| `LOG_LEVEL`            | `error`                   | Logging level: `debug`, `info`, `warn`, `error`              |
+| `ALLOWED_ROOTS`        | `.`                       | Comma-separated directory paths permitted for file ingestion |
+| `MAX_FILE_SIZE_BYTES`  | `10485760` (10MB)         | Maximum file size allowed for document ingestion             |
+| `RATE_LIMIT_MAX`       | `100`                     | Maximum requests permitted per sliding time window           |
+| `RATE_LIMIT_WINDOW_MS` | `60000` (1 min)           | Sliding rate limiter window in milliseconds                  |
 
 ---
 
@@ -505,13 +547,13 @@ docker compose logs -f
 
 ## Documentation Index
 
-* [Architecture Guide](docs/architecture.md) — Layered design, protocol topology, and component contracts.
-* [Security Model](docs/security.md) — Multi-layer SSRF defenses, directory containment, and scope authorizations.
-* [Connectors Reference](docs/connectors.md) — GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
-* [Database & Migrations](docs/database.md) — Schema definitions, audit tables, and WAL configuration.
-* [Operations & Runbook](docs/operations.md) — Online backups, rate limiting, scheduling, and graceful shutdown.
-* [Testing Strategy](docs/testing.md) — Zero-mock philosophy, test suite itemization, and benchmarks.
-* [Practical Examples](docs/examples.md) — Detailed walkthroughs of real-world contradiction scenarios.
+- [Architecture Guide](docs/architecture.md) — Layered design, protocol topology, and component contracts.
+- [Security Model](docs/security.md) — Multi-layer SSRF defenses, directory containment, and scope authorizations.
+- [Connectors Reference](docs/connectors.md) — GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
+- [Database & Migrations](docs/database.md) — Schema definitions, audit tables, and WAL configuration.
+- [Operations & Runbook](docs/operations.md) — Online backups, rate limiting, scheduling, and graceful shutdown.
+- [Testing Strategy](docs/testing.md) — Zero-mock philosophy, test suite itemization, and benchmarks.
+- [Practical Examples](docs/examples.md) — Detailed walkthroughs of real-world contradiction scenarios.
 
 ---
 
