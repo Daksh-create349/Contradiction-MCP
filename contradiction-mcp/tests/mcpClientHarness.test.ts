@@ -124,6 +124,24 @@ describe('MCP Client Harness: Tools, Resources, & Prompts Verification', () => {
     expect((msg.content as { text: string }).text).toContain('test-contra-uuid-123');
   });
 
+  it('gets investigate_contradiction and review_source_consistency prompts without arguments', async () => {
+    const p1 = await client.getPrompt({
+      name: 'investigate_contradiction',
+    });
+    expect(p1.messages.length).toBe(1);
+    expect((p1.messages[0].content as { text: string }).text).toContain(
+      'open contradiction records',
+    );
+
+    const p2 = await client.getPrompt({
+      name: 'review_source_consistency',
+    });
+    expect(p2.messages.length).toBe(1);
+    expect((p2.messages[0].content as { text: string }).text).toContain(
+      'across all registered sources',
+    );
+  });
+
   it('executes sync_document, gets contradiction, and advises resolution via MCP client', async () => {
     // Write two documents with conflicting claims
     const doc1 = path.join(tempDir, 'service_deploy.json');

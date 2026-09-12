@@ -1565,18 +1565,30 @@ export function createMcpServer(options: ServerOptions): McpServer {
     {
       description:
         'Provides a structured investigation plan for an AI agent to resolve a specific contradiction.',
-      argsSchema: {
-        contradictionId: z.string().describe('ID of the contradiction to investigate'),
-      },
+      argsSchema: z
+        .object({
+          contradictionId: z
+            .string()
+            .optional()
+            .describe('ID of the contradiction to investigate (optional)'),
+        })
+        .optional()
+        .default({}),
     },
     async (args) => {
+      const id = args?.contradictionId;
+      const targetText = id ? `contradiction record '${id}'` : 'open contradiction records';
+      const step1 = id
+        ? `1. Call 'get_contradiction' with contradictionId='${id}'.`
+        : `1. Call 'list_contradictions' with status='OPEN' to identify target contradiction IDs, then inspect them via 'get_contradiction'.`;
+
       return {
         messages: [
           {
             role: 'user',
             content: {
               type: 'text',
-              text: `Please investigate contradiction record '${args.contradictionId}' using Contradiction MCP tools:\n1. Call 'get_contradiction' with contradictionId='${args.contradictionId}'.\n2. Inspect the two conflicting claims and their sources.\n3. Call 'explain_claim_relationship' to analyze contextual dimensions (environment, scope, roles, ranges).\n4. Call 'advise_resolution' to assess authority and freshness scoring.\n5. Recommend or execute 'resolve_contradiction' or 'dismiss_contradiction' with justified reasoning.`,
+              text: `Please investigate ${targetText} using Contradiction MCP tools:\n${step1}\n2. Inspect the conflicting claims and their originating sources.\n3. Call 'explain_claim_relationship' to analyze contextual dimensions (environment, scope, roles, ranges).\n4. Call 'advise_resolution' to assess authority and freshness scoring.\n5. Recommend or execute 'resolve_contradiction' or 'dismiss_contradiction' with justified reasoning.`,
             },
           },
         ],
@@ -1589,18 +1601,27 @@ export function createMcpServer(options: ServerOptions): McpServer {
     {
       description:
         'Guides an agent through scanning and reviewing consistency for claims associated with an ingested source.',
-      argsSchema: {
-        sourceName: z.string().describe('Name or identifier of the source repository or document'),
-      },
+      argsSchema: z
+        .object({
+          sourceName: z
+            .string()
+            .optional()
+            .describe('Name or identifier of the source repository or document (optional)'),
+        })
+        .optional()
+        .default({}),
     },
     async (args) => {
+      const source = args?.sourceName;
+      const sourceTarget = source ? `for source '${source}'` : 'across all registered sources';
+
       return {
         messages: [
           {
             role: 'user',
             content: {
               type: 'text',
-              text: `Review consistency for source '${args.sourceName}':\n1. Run 'scan_for_contradictions' to discover any newly introduced discrepancies.\n2. Query 'list_contradictions' filtered by status='OPEN'.\n3. For each high or critical contradiction, review the conflicting evidence snippets and recommend updates.`,
+              text: `Review consistency ${sourceTarget}:\n1. Run 'list_connectors' to review registered data sources.\n2. Run 'scan_for_contradictions' to discover any newly introduced discrepancies.\n3. Query 'list_contradictions' filtered by status='OPEN'.\n4. For each high or critical contradiction, review the conflicting evidence snippets and recommend updates.`,
             },
           },
         ],
