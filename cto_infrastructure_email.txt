@@ -1,0 +1,17 @@
+From: cto@acme-corp.com
+To: engineering-leads@acme-corp.com
+Subject: Urgent: Infrastructure Policy & Production Runtime Changes
+Date: 2026-09-12
+
+Hi Team,
+
+In today's executive review, we noticed confusion regarding the API Server specifications.
+Going forward, please note the required settings for production:
+
+- node_version: 14
+- http_port: 8000
+
+Ensure that all documentation and Dockerfiles reflect this immediately.
+
+Thanks,
+CTO Office
