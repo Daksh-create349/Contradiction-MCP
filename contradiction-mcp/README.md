@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Contradiction MCP
+# Contradiction MCP
 
 **Autonomous Cross-Source Inconsistency & Contradiction Intelligence Engine for AI Agents**
 
@@ -14,21 +14,21 @@
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 
 <p align="center">
-  <a href="#-the-problem-it-solves">Problem</a> •
-  <a href="#-core-capabilities">Capabilities</a> •
-  <a href="#-system-architecture">Architecture</a> •
-  <a href="#-one-command-quickstart-all-ides">Quickstart</a> •
-  <a href="#-mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
-  <a href="#-step-by-step-hands-on-tutorial">Tutorials</a> •
-  <a href="#-documentation-index">Docs</a> •
-  <a href="#-license">License</a>
+  <a href="#the-problem-it-solves">Problem</a> •
+  <a href="#core-capabilities">Capabilities</a> •
+  <a href="#system-architecture">Architecture</a> •
+  <a href="#one-command-quickstart-all-ides">Quickstart</a> •
+  <a href="#mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
+  <a href="#step-by-step-hands-on-tutorial">Tutorials</a> •
+  <a href="#documentation-index">Docs</a> •
+  <a href="#license">License</a>
 </p>
 
 </div>
 
 ---
 
-## 📌 The Problem It Solves
+## The Problem It Solves
 
 Modern engineering ecosystems rely on fragmented, uncoordinated sources of truth:
 
@@ -43,7 +43,7 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
 
 ---
 
-## ✨ Core Capabilities
+## Core Capabilities
 
 - **Zero Mocks**: Real embedded SQLite with Write-Ahead Logging (WAL), real filesystem I/O with directory containment guards, and real HTTP fetchers with pre-flight DNS validation.
 - **Context-Aware Contradiction Engine**: Eliminates false positives by understanding semantic contexts:
@@ -65,7 +65,7 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ### Visual Dataflow
 
@@ -128,7 +128,7 @@ flowchart TD
 
 ---
 
-## 🚀 One-Command Quickstart (All IDEs)
+## One-Command Quickstart (All IDEs)
 
 Automatically configure Contradiction MCP into your favorite editor with a single command:
 
@@ -171,7 +171,7 @@ node bin/cli.js install [antigravity|cursor|claude|claude-code|windsurf|all]
 
 ---
 
-## ⚙️ Manual IDE Client Configuration
+## Manual IDE Client Configuration
 
 If you prefer manual configuration, add the following configuration block to your client settings:
 
@@ -252,7 +252,7 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ---
 
-## 🛠️ MCP Interface: 21 Tools, 4 Resources, 2 Prompts
+## MCP Interface: 21 Tools, 4 Resources, 2 Prompts
 
 ### Active MCP Tools (21)
 
@@ -294,7 +294,7 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ---
 
-## 🔍 Example Tool Payloads & Responses
+## Example Tool Payloads & Responses
 
 <details>
 <summary><b>1. Ingesting a Document (<code>sync_document</code>)</b></summary>
@@ -384,7 +384,7 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ---
 
-## 🧪 Step-by-Step Hands-On Tutorial
+## Step-by-Step Hands-On Tutorial
 
 ### Tutorial: Detecting Real Document Contradictions in 30 Seconds
 
@@ -438,7 +438,7 @@ main();
 
 ---
 
-## 💻 Complete Command Reference
+## Complete Command Reference
 
 | Command                  | Description                                                                  |
 | :----------------------- | :--------------------------------------------------------------------------- |
@@ -465,7 +465,7 @@ main();
 
 ---
 
-## 🌐 Environment Variables
+## Environment Variables
 
 | Variable               | Default                   | Description                                                  |
 | :--------------------- | :------------------------ | :----------------------------------------------------------- |
@@ -484,7 +484,7 @@ main();
 
 ---
 
-## 🐳 Docker & Container Deployment
+## Docker & Container Deployment
 
 ### Run with Docker
 
@@ -512,19 +512,19 @@ docker compose logs -f
 
 ---
 
-## 📚 Documentation Index
+## Documentation Index
 
-- 📖 [Architecture Guide](docs/architecture.md) — Layered design, protocol topology, and component contracts.
-- 🔒 [Security Model](docs/security.md) — Multi-layer SSRF defenses, directory containment, and scope authorizations.
-- 🔌 [Connectors Reference](docs/connectors.md) — GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
-- 💾 [Database & Migrations](docs/database.md) — Schema definitions, audit tables, and WAL configuration.
-- 📋 [Operations & Runbook](docs/operations.md) — Online backups, rate limiting, scheduling, and graceful shutdown.
-- 🧪 [Testing Strategy](docs/testing.md) — Zero-mock philosophy, test suite itemization, and benchmarks.
-- 💡 [Practical Examples](docs/examples.md) — Detailed walkthroughs of real-world contradiction scenarios.
+- [Architecture Guide](docs/architecture.md) — Layered design, protocol topology, and component contracts.
+- [Security Model](docs/security.md) — Multi-layer SSRF defenses, directory containment, and scope authorizations.
+- [Connectors Reference](docs/connectors.md) — GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
+- [Database & Migrations](docs/database.md) — Schema definitions, audit tables, and WAL configuration.
+- [Operations & Runbook](docs/operations.md) — Online backups, rate limiting, scheduling, and graceful shutdown.
+- [Testing Strategy](docs/testing.md) — Zero-mock philosophy, test suite itemization, and benchmarks.
+- [Practical Examples](docs/examples.md) — Detailed walkthroughs of real-world contradiction scenarios.
 
 ---
 
-## ⚖️ License
+## License
 
 This project is licensed under the **[MIT License](../LICENSE)**.
 
