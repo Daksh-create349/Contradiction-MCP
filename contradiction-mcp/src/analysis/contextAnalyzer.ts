@@ -94,13 +94,15 @@ export class ContextAnalyzer {
       claimA.sourceRole === 'example' ||
       claimB.sourceRole === 'example' ||
       (claimA.metadata &&
-        String(claimA.metadata.evidence || '')
-          .toLowerCase()
-          .includes('example')) ||
+        (claimA.metadata.isExample === true ||
+          /\b(?:for\s+example|as\s+an\s+example|e\.g\.|sample|tutorial|quickstart)\b|^\s*[-*#]*\s*example\b/i.test(
+            String(claimA.metadata.evidence || ''),
+          ))) ||
       (claimB.metadata &&
-        String(claimB.metadata.evidence || '')
-          .toLowerCase()
-          .includes('example'));
+        (claimB.metadata.isExample === true ||
+          /\b(?:for\s+example|as\s+an\s+example|e\.g\.|sample|tutorial|quickstart)\b|^\s*[-*#]*\s*example\b/i.test(
+            String(claimB.metadata.evidence || ''),
+          )));
 
     if (isExample) {
       divergences.push('sourceRole');
@@ -144,7 +146,7 @@ export class ContextAnalyzer {
         relationship: {
           type: 'DIFFERENT_ENVIRONMENT',
           confidence: 0.9,
-          explanation: `Claims apply to distinct non-overlapping environments (${envA} vs ${envB}). Distinct environments legitimately maintain different parameter values.`,
+          explanation: `Claims apply to distinct non-overlapping environments ('${envA}' vs '${envB}'). Distinct environments legitimately maintain different parameter values.`,
           isContradictionEligible: false,
           contextFactors: {
             environmentMatch: false,
@@ -156,7 +158,7 @@ export class ContextAnalyzer {
         },
         isContextCompatible: false,
         compatibilityScore: 0.2,
-        reason: `Environments '${envA}' and '${envB}' are distinct operational tiers.`,
+        reason: `Environment '${envA}' is explicitly separate from '${envB}'.`,
         divergenceDimensions: divergences,
       };
     }
@@ -165,13 +167,13 @@ export class ContextAnalyzer {
     const scopeA = (claimA.scope || 'unknown').toLowerCase();
     const scopeB = (claimB.scope || 'unknown').toLowerCase();
 
-    // If scope differs, but both describe global repo requirement, evaluate cautiously
+    // Isolated service vs repository scopes legitimately diverge
     if (
       scopeA !== 'unknown' &&
       scopeB !== 'unknown' &&
       scopeA !== scopeB &&
-      scopeA === 'service' &&
-      scopeB === 'repository'
+      ((scopeA === 'service' && scopeB === 'repository') ||
+        (scopeA === 'repository' && scopeB === 'service'))
     ) {
       divergences.push('scope');
       return {

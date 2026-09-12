@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import child_process from 'node:child_process';
 import { PDFParse } from 'pdf-parse';
 import { Connector, ConnectorMetadata, ConnectionTestResult } from '../types/connector.js';
 import { FetchResult, ExtractedClaim } from '../types/fetchResult.js';
@@ -53,7 +54,17 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     capabilities: {
       supportsIncrementalSync: false,
       supportsFileInspection: true,
-      supportedFileTypes: ['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.pdf'],
+      supportedFileTypes: [
+        '.md',
+        '.txt',
+        '.json',
+        '.yaml',
+        '.yml',
+        '.csv',
+        '.pdf',
+        '.docx',
+        '.eml',
+      ],
     },
   };
 
@@ -176,6 +187,28 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         const msg = err instanceof Error ? err.message : String(err);
         throw new ValidationError(`Failed to parse PDF file '${resolved}': ${msg}`);
       }
+    } else if (ext === '.docx') {
+      try {
+        const xml = child_process.execSync(`unzip -p "${realPath}" word/document.xml`, {
+          encoding: 'utf-8',
+          maxBuffer: this.maxFileSizeBytes,
+        });
+        const paragraphs = xml.match(/<w:p\b[^>]*>.*?<\/w:p>/gs) || [xml];
+        lines = paragraphs
+          .map((p) => {
+            const textMatches = p.match(/<w:t\b[^>]*>([^<]*)<\/w:t>/g);
+            if (!textMatches) return '';
+            return textMatches
+              .map((t) => t.replace(/<[^>]+>/g, ''))
+              .join('')
+              .trim();
+          })
+          .filter(Boolean);
+        content = lines.join('\n');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new ValidationError(`Failed to parse DOCX file '${resolved}': ${msg}`);
+      }
     } else {
       content = fs.readFileSync(realPath, 'utf-8');
       lines = content.split(/\r?\n/);
@@ -212,7 +245,10 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     const { rawData, metadata } = fetchResult;
     const { filePath, fileExtension, lines, content } = rawData;
     const claims: ExtractedClaim[] = [];
-    const subjectBase = (metadata.subject as string) || path.basename(filePath, fileExtension);
+
+    // Auto-detect H1 subject if subject is not explicitly set
+    const subjectBase =
+      (metadata.subject as string) || path.basename(filePath, fileExtension);
     const defaultScope = (metadata.scope as string) || 'file';
     const defaultEnv = (metadata.environment as string) || 'unknown';
     const defaultRole =
@@ -220,6 +256,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       (fileExtension === '.json' || fileExtension === '.yaml' || fileExtension === '.yml'
         ? 'configuration'
         : 'documentation');
+    const mtimeDate = metadata.mtime ? new Date(metadata.mtime as string) : new Date();
 
     switch (fileExtension) {
       case '.json':
@@ -231,6 +268,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           defaultScope,
           defaultRole,
           claims,
+          mtimeDate,
         );
         break;
       case '.yaml':
@@ -244,6 +282,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           defaultRole,
           claims,
           'yaml_parse',
+          mtimeDate,
         );
         break;
       case '.csv':
@@ -255,6 +294,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           defaultScope,
           defaultRole,
           claims,
+          mtimeDate,
         );
         break;
       case '.pdf':
@@ -266,12 +306,11 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           defaultScope,
           defaultRole,
           claims,
+          mtimeDate,
         );
         break;
-      case '.md':
-      case '.txt':
-      default:
-        this.extractFromMarkdownOrText(
+      case '.eml':
+        this.extractFromEmail(
           lines,
           filePath,
           subjectBase,
@@ -279,7 +318,37 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           defaultScope,
           defaultRole,
           claims,
+          mtimeDate,
         );
+        break;
+      case '.docx':
+      case '.md':
+      case '.txt':
+      default:
+        // Check if file is formatted as an email even with .txt extension
+        if (lines.length > 3 && lines.slice(0, 8).some((l) => /^From:\s+/i.test(l))) {
+          this.extractFromEmail(
+            lines,
+            filePath,
+            subjectBase,
+            defaultEnv,
+            defaultScope,
+            defaultRole,
+            claims,
+            mtimeDate,
+          );
+        } else {
+          this.extractFromMarkdownOrText(
+            lines,
+            filePath,
+            subjectBase,
+            defaultEnv,
+            defaultScope,
+            defaultRole,
+            claims,
+            mtimeDate,
+          );
+        }
         break;
     }
 
@@ -291,6 +360,55 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     return claims;
   }
 
+  private extractFromEmail(
+    lines: string[],
+    filePath: string,
+    subjectBase: string,
+    env: string,
+    scope: string,
+    sourceRole: string,
+    claims: ExtractedClaim[],
+    observedAt: Date,
+  ): void {
+    let emailSubject = '';
+    let emailDate: Date | null = null;
+    const bodyLines: string[] = [];
+    let isBody = false;
+
+    for (const line of lines) {
+      if (!isBody) {
+        if (line.trim() === '') {
+          isBody = true;
+          continue;
+        }
+        const subMatch = line.match(/^Subject:\s*(.+)$/i);
+        if (subMatch) {
+          emailSubject = subMatch[1].trim();
+        }
+        const dateMatch = line.match(/^Date:\s*(.+)$/i);
+        if (dateMatch) {
+          const parsed = Date.parse(dateMatch[1]);
+          if (!isNaN(parsed)) {
+            emailDate = new Date(parsed);
+          }
+        }
+      } else {
+        bodyLines.push(line);
+      }
+    }
+
+    this.extractFromMarkdownOrText(
+      bodyLines.length > 0 ? bodyLines : lines,
+      filePath,
+      subjectBase,
+      env,
+      scope,
+      sourceRole,
+      claims,
+      emailDate || observedAt,
+    );
+  }
+
   private extractFromJson(
     content: string,
     filePath: string,
@@ -299,41 +417,62 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     scope: string,
     sourceRole: string,
     claims: ExtractedClaim[],
+    observedAt: Date,
   ): void {
     try {
       const parsed = JSON.parse(content);
       if (typeof parsed !== 'object' || parsed === null) return;
 
-      for (const [key, val] of Object.entries(parsed)) {
-        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
-          const predicate = key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-          const valueStr = String(val);
-          const externalId = createClaimExternalId('document', filePath, predicate);
+      const flatEntries = this.flattenJsonObject(parsed as Record<string, unknown>);
+      let index = 0;
+      for (const [key, val] of flatEntries) {
+        index++;
+        const predicate = key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const valueStr = String(val);
+        const externalId = createClaimExternalId('document', filePath, predicate, String(index));
 
-          claims.push({
-            subject: subjectBase,
-            predicate,
-            value: valueStr,
-            valueType: inferClaimValueType(predicate, valueStr) as any,
-            environment: env,
-            scope,
-            sourceRole,
-            isHistorical: false,
-            observedAt: new Date(),
-            externalId,
-            provenance: {
-              connector: 'document',
-              filePath,
-              extractionMethod: 'json_parse',
-              observedAt: new Date().toISOString(),
-              evidence: `"${key}": ${JSON.stringify(val)}`,
-            },
-          });
-        }
+        claims.push({
+          subject: subjectBase,
+          predicate,
+          value: valueStr,
+          valueType: inferClaimValueType(predicate, valueStr) as any,
+          environment: env,
+          scope,
+          sourceRole,
+          isHistorical: false,
+          observedAt,
+          externalId,
+          provenance: {
+            connector: 'document',
+            filePath,
+            extractionMethod: 'json_parse',
+            observedAt: observedAt.toISOString(),
+            evidence: `"${key}": ${JSON.stringify(val)}`,
+          },
+        });
       }
     } catch {
-      // If JSON parse fails, fallback to line extraction
+      // Fallback
     }
+  }
+
+  private flattenJsonObject(
+    obj: Record<string, unknown>,
+    prefix = '',
+  ): Array<[string, string | number | boolean]> {
+    const entries: Array<[string, string | number | boolean]> = [];
+    for (const [k, v] of Object.entries(obj)) {
+      const compositeKey = prefix ? `${prefix}_${k}` : k;
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        entries.push([compositeKey, v]);
+        if (prefix && !entries.some(([exK]) => exK === k)) {
+          entries.push([k, v]);
+        }
+      } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+        entries.push(...this.flattenJsonObject(v as Record<string, unknown>, compositeKey));
+      }
+    }
+    return entries;
   }
 
   private extractFromYamlOrText(
@@ -345,6 +484,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     sourceRole: string,
     claims: ExtractedClaim[],
     method: string,
+    observedAt: Date = new Date(),
   ): void {
     const kvRegex = /^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*(['"]?)([^'"#\r\n]+)\2\s*(?:#.*)?$/;
 
@@ -368,14 +508,14 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
             scope,
             sourceRole,
             isHistorical: false,
-            observedAt: new Date(),
+            observedAt,
             externalId,
             provenance: {
               connector: 'document',
               filePath,
               lineRange: [i + 1, i + 1],
               extractionMethod: method,
-              observedAt: new Date().toISOString(),
+              observedAt: observedAt.toISOString(),
               evidence: line.trim(),
             },
           });
@@ -392,6 +532,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     scope: string,
     sourceRole: string,
     claims: ExtractedClaim[],
+    observedAt: Date = new Date(),
   ): void {
     if (lines.length < 2) return;
     const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
@@ -424,14 +565,14 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
             scope,
             sourceRole,
             isHistorical: false,
-            observedAt: new Date(),
+            observedAt,
             externalId,
             provenance: {
               connector: 'document',
               filePath,
               lineRange: [i + 1, i + 1],
               extractionMethod: 'csv_row',
-              observedAt: new Date().toISOString(),
+              observedAt: observedAt.toISOString(),
               evidence: line,
             },
           });
@@ -448,6 +589,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     scope: string,
     sourceRole: string,
     claims: ExtractedClaim[],
+    observedAt: Date = new Date(),
   ): void {
     // Anchored key-value pattern supporting bold, code, lists, and multi-token values with spaces
     const directKvPattern =
@@ -473,7 +615,6 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           key = rawK.toLowerCase().replace(/[^a-z0-9_]/g, '_');
           val = rawV.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
 
-          // Refine value if it contains a sentence with explicit quantity (e.g. "The application requires at least 8 GB")
           const qtyMatch = val.match(
             /(?:at\s+least|minimum|requires|is)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb|kb|g|m|b|ms|s|sec|seconds|minutes|hours))\b/i,
           );
@@ -504,33 +645,70 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       // 3. Check prose assertion heuristics
       if (!key) {
         const proseRamMatch = line.match(
-          /(?:requires|minimum|needs)\s*(?:at\s+least)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb))\s*(?:of\s+)?(?:ram|memory)/i,
+          /(?:requires|minimum|needs|min|memory\s+is|ram\s+is|memory:?|ram:?)\s*(?:at\s+least)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb|kb|g|m|b))\s*(?:of\s+)?(?:ram|memory)?/i,
         );
         if (proseRamMatch) {
-          key = 'minimum_ram';
+          key = 'min_memory';
           val = proseRamMatch[1].trim();
           method = 'prose_heuristic';
         } else {
-          const prosePortMatch = line.match(/(?:runs|listens)\s+on\s+port\s+(\d{2,5})/i);
+          const prosePortMatch = line.match(
+            /(?:runs|listens|hosted|serves|serving|started)\s+(?:on|at)\s+(?:http\s+)?port\s+(\d{2,5})/i,
+          );
           if (prosePortMatch) {
             key = 'port';
             val = prosePortMatch[1].trim();
             method = 'prose_heuristic';
           } else {
             const proseNodeMatch = line.match(
-              /(?:requires\s+)?(?:node|node\.js|nodejs)\s+(?:version\s+)?([v=~^><\d.]+)/i,
+              /(?:requires|using|uses|built\s+with|runtime\s+is)?\s*(?:node|node\.js|nodejs)\s+(?:version\s+)?([v=~^><\d.]+)/i,
             );
             if (proseNodeMatch) {
               key = 'node_version';
               val = proseNodeMatch[1].trim();
               method = 'prose_heuristic';
+            } else {
+              const prosePyMatch = line.match(
+                /(?:requires|using|uses)?\s*(?:python|python3)\s+(?:version\s+)?([v=~^><\d.]+)/i,
+              );
+              if (prosePyMatch) {
+                key = 'python_version';
+                val = prosePyMatch[1].trim();
+                method = 'prose_heuristic';
+              } else {
+                const proseDbMatch = line.match(
+                  /(?:database|db|datastore)\s+(?:is|engine\s+is|backend\s+is|type\s+is|using|uses)\s+(postgres|postgresql|mysql|sqlite|redis|mongodb|mariadb)/i,
+                );
+                if (proseDbMatch) {
+                  key = 'db_engine';
+                  val = proseDbMatch[1].trim();
+                  method = 'prose_heuristic';
+                } else {
+                  const proseTimeoutMatch = line.match(
+                    /(?:timeout|deadline)\s+(?:is|of|set\s+to)\s*(\d+(?:\.\d+)?\s*(?:ms|s|sec|seconds|m|min|minutes))/i,
+                  );
+                  if (proseTimeoutMatch) {
+                    key = 'timeout';
+                    val = proseTimeoutMatch[1].trim();
+                    method = 'prose_heuristic';
+                  } else {
+                    const proseCapacityMatch = line.match(
+                      /(?:max|maximum|limit|capacity\s+of)\s*(\d+)\s*(?:concurrent\s+)?(?:users|connections|clients|workers)/i,
+                    );
+                    if (proseCapacityMatch) {
+                      key = 'max_users';
+                      val = proseCapacityMatch[1].trim();
+                      method = 'prose_heuristic';
+                    }
+                  }
+                }
+              }
             }
           }
         }
       }
 
       if (key && val && key.length > 2 && val.length > 0 && !val.startsWith('http')) {
-        // Line number in distinctKey avoids externalId collision across multiple occurrences in same file
         const externalId = createClaimExternalId('document', filePath, key, String(i + 1));
         const valueType = inferClaimValueType(key, val) as any;
 
@@ -543,14 +721,14 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           scope,
           sourceRole,
           isHistorical: false,
-          observedAt: new Date(),
+          observedAt,
           externalId,
           provenance: {
             connector: 'document',
             filePath,
             lineRange: [i + 1, i + 1],
             extractionMethod: method,
-            observedAt: new Date().toISOString(),
+            observedAt: observedAt.toISOString(),
             evidence: line.trim(),
           },
         });
@@ -566,6 +744,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     scope: string,
     sourceRole: string,
     claims: ExtractedClaim[],
+    fileMtime?: Date,
   ): void {
     if (!rawData.pdfPages || rawData.pdfPages.length === 0) {
       this.extractFromMarkdownOrText(
@@ -576,6 +755,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         scope,
         sourceRole,
         claims,
+        fileMtime,
       );
       return;
     }
@@ -613,7 +793,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
               scope: scope as ClaimScope,
               sourceRole: sourceRole as ClaimSourceRole,
               isHistorical: false,
-              observedAt: new Date(),
+              observedAt: fileMtime || new Date(),
               externalId,
               provenance: {
                 connector: 'document',
@@ -621,7 +801,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
                 page: page.pageNumber,
                 lineRange: [i + 1, i + 1],
                 extractionMethod: 'pdf_extractor',
-                observedAt: new Date().toISOString(),
+                observedAt: (fileMtime || new Date()).toISOString(),
                 evidence: line.trim(),
               },
             });

@@ -1,4 +1,5 @@
 import { SemanticMatcher } from '../intelligence/semanticMatcher.js';
+import { EntityResolver } from '../intelligence/entityResolver.js';
 
 export interface ClaimMatchResult {
   matches: boolean;
@@ -120,11 +121,12 @@ const PREDICATE_SYNONYM_GROUPS: Array<Set<string>> = [
     'token_expiration',
     'session_timeout',
     'timeout',
+    'timeout_ms',
   ]),
-  new Set(['db_engine', 'database_type', 'database_engine', 'db_type', 'database']),
+  new Set(['db_engine', 'database_type', 'database_engine', 'db_type', 'database', 'db_backend']),
   new Set(['node_version', 'node', 'nodejs_version', 'node_ver']),
   new Set(['python_version', 'python', 'python_ver']),
-  new Set(['memory', 'ram', 'min_ram', 'minimum_ram', 'memory_limit']),
+  new Set(['memory', 'ram', 'min_ram', 'minimum_ram', 'min_memory', 'memory_limit']),
   new Set(['cpu', 'cores', 'min_cpu', 'cpu_cores']),
 ];
 
@@ -138,18 +140,115 @@ export function arePredicateSynonyms(predA: string, predB: string): boolean {
   return false;
 }
 
+export function getCanonicalPredicate(predicate: string): string {
+  const norm = predicate.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  for (const group of PREDICATE_SYNONYM_GROUPS) {
+    if (group.has(norm)) {
+      return Array.from(group).sort()[0];
+    }
+  }
+  return norm;
+}
+
+export const SYSTEM_LEVEL_PREDICATES = new Set([
+  'port',
+  'listen_port',
+  'server_port',
+  'http_port',
+  'service_port',
+  'node_version',
+  'node',
+  'nodejs_version',
+  'node_ver',
+  'python_version',
+  'python',
+  'python_ver',
+  'memory',
+  'ram',
+  'min_ram',
+  'minimum_ram',
+  'min_memory',
+  'memory_limit',
+  'cpu',
+  'cores',
+  'min_cpu',
+  'cpu_cores',
+  'db_engine',
+  'database_type',
+  'database_engine',
+  'db_type',
+  'database',
+  'db_backend',
+  'jwt_ttl',
+  'token_expiry',
+  'session_timeout',
+  'timeout',
+  'timeout_ms',
+  'max_connections',
+  'max_users',
+  'concurrent_users',
+  'tls_enabled',
+  'ssl_enabled',
+  'cluster_region',
+  'environment',
+  'version',
+  'license',
+]);
+
+export function isSystemLevelPredicate(pred: string): boolean {
+  const norm = pred.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return SYSTEM_LEVEL_PREDICATES.has(norm);
+}
+
+export function isGenericOrDocumentSubject(subject: string): boolean {
+  if (!subject) return true;
+  const s = subject.toLowerCase().trim();
+  const genericWords = new Set([
+    'default',
+    'system',
+    'app',
+    'application',
+    'service',
+    'workspace',
+    'spec',
+    'unknown',
+    'website',
+    'global',
+    'infrastructure',
+  ]);
+  if (genericWords.has(s)) return true;
+  if (/\.(md|txt|json|yaml|yml|docx|csv|pdf|ts|js|html|eml)$/i.test(s)) return true;
+  if (/^(file|doc|email|cto)[a-z0-9_]*$/i.test(s)) return true;
+  if (
+    /^[a-z0-9_-]+[_.](spec|specification|manifest|architecture|blueprint|directive|guide|config|configuration|readme|deployment)$/i.test(
+      s,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /^(spec|specification|manifest|architecture|blueprint|directive|guide|config|configuration|readme|deployment)$/i.test(
+      s,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export class ClaimMatcher {
   private readonly subjectThreshold: number;
   private readonly predicateThreshold: number;
   private readonly semanticMatcher: SemanticMatcher;
+  private readonly entityResolver: EntityResolver;
 
   constructor(options?: ClaimMatcherOptions) {
     this.subjectThreshold = options?.subjectThreshold ?? 0.75;
     this.predicateThreshold = options?.predicateThreshold ?? 0.65;
     this.semanticMatcher = new SemanticMatcher({
-      enabled: options?.enableSemanticMatching ?? true,
       threshold: this.predicateThreshold,
     });
+    this.entityResolver = new EntityResolver();
   }
 
   public match(
@@ -161,11 +260,27 @@ export class ClaimMatcher {
     const normPredA = normalizeText(claimA.predicate);
     const normPredB = normalizeText(claimB.predicate);
 
-    const subjectSimilarity = calculateCompositeSimilarity(claimA.subject, claimB.subject);
+    const entityMatch = this.entityResolver.resolveEntityMatch(claimA.subject, claimB.subject);
+    let subjectSimilarity = calculateCompositeSimilarity(claimA.subject, claimB.subject);
+    if (entityMatch.isMatch) {
+      subjectSimilarity = Math.max(subjectSimilarity, entityMatch.confidence);
+    }
+
+    const leafA = normPredA.split('_').pop() || normPredA;
+    const leafB = normPredB.split('_').pop() || normPredB;
+    const isSynonym =
+      arePredicateSynonyms(claimA.predicate, claimB.predicate) ||
+      arePredicateSynonyms(leafA, leafB);
+
     let predicateSimilarity = calculateCompositeSimilarity(claimA.predicate, claimB.predicate);
 
+    // Guard against accidental prefix matching (e.g. deployment_server_database vs deployment_server_port)
+    if (!isSynonym && leafA !== leafB && (normPredA.includes('_') || normPredB.includes('_'))) {
+      predicateSimilarity = 0;
+    }
+
     let matchDetail = '';
-    if (arePredicateSynonyms(claimA.predicate, claimB.predicate)) {
+    if (isSynonym) {
       predicateSimilarity = Math.max(predicateSimilarity, 0.95);
       matchDetail = ' (matched via predicate synonym dictionary)';
     } else if (predicateSimilarity < this.predicateThreshold && this.semanticMatcher.isEnabled()) {
@@ -176,7 +291,21 @@ export class ClaimMatcher {
       }
     }
 
-    const subjectMatches = subjectSimilarity >= this.subjectThreshold;
+    const isSysPred =
+      isSystemLevelPredicate(claimA.predicate) ||
+      isSystemLevelPredicate(claimB.predicate) ||
+      isSystemLevelPredicate(leafA) ||
+      isSystemLevelPredicate(leafB);
+    const isGenericSubjectA = isGenericOrDocumentSubject(claimA.subject);
+    const isGenericSubjectB = isGenericOrDocumentSubject(claimB.subject);
+
+    let subjectMatches = subjectSimilarity >= this.subjectThreshold;
+    if (!subjectMatches && isSysPred && (isGenericSubjectA || isGenericSubjectB)) {
+      subjectMatches = true;
+      subjectSimilarity = Math.max(subjectSimilarity, 0.85);
+      matchDetail += ' (cross-document system specification)';
+    }
+
     const predicateMatches = predicateSimilarity >= this.predicateThreshold;
     const matches = subjectMatches && predicateMatches;
 

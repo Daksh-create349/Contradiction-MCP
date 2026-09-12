@@ -1,0 +1,9 @@
+{
+  "service_name": "container-service",
+  "deployment": {
+    "server": {
+      "port": 3000,
+      "database": "mongodb"
+    }
+  }
+}

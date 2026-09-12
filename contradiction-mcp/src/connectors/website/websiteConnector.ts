@@ -265,6 +265,24 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
               rawKey = 'node_version';
               rawVal = proseNodeMatch[1].trim();
               method = 'prose_heuristic';
+            } else {
+              const prosePyMatch = line.match(
+                /(?:requires\s+)?(?:python|py)\s+(?:version\s+)?([v=~^><\d.]+)/i,
+              );
+              if (prosePyMatch) {
+                rawKey = 'python_version';
+                rawVal = prosePyMatch[1].trim();
+                method = 'prose_heuristic';
+              } else {
+                const proseDbMatch = line.match(
+                  /(?:requires|uses|connects\s+to)\s+(postgres(?:ql)?|mysql|redis|mongodb|sqlite)\s+(?:database|db)?/i,
+                );
+                if (proseDbMatch) {
+                  rawKey = 'database';
+                  rawVal = proseDbMatch[1].trim();
+                  method = 'prose_heuristic';
+                }
+              }
             }
           }
         }
@@ -317,10 +335,26 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
 
   private extractCleanLines(html: string): string[] {
     // Strip script and style blocks
-    const stripped = html
+    let cleaned = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, '\n');
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ');
+
+    // Parse HTML table rows into key: value formatted lines
+    cleaned = cleaned.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (_, rowContent) => {
+      const cells: string[] = [];
+      const cellRegex = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
+      let cellMatch;
+      while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+        const text = cellMatch[1].replace(/<[^>]+>/g, ' ').trim();
+        if (text) cells.push(text);
+      }
+      if (cells.length >= 2) {
+        return `\n${cells[0]}: ${cells[1]}\n`;
+      }
+      return '\n' + cells.join(' ') + '\n';
+    });
+
+    const stripped = cleaned.replace(/<[^>]+>/g, '\n');
 
     return stripped
       .split(/\r?\n/)

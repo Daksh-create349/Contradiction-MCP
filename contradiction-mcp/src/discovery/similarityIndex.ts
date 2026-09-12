@@ -1,5 +1,11 @@
 import { Claim } from '../domain/entities/claim.js';
-import { normalizeText, calculateCompositeSimilarity } from '../analysis/claimMatcher.js';
+import {
+  normalizeText,
+  calculateCompositeSimilarity,
+  arePredicateSynonyms,
+  getCanonicalPredicate,
+} from '../analysis/claimMatcher.js';
+import { candidateGenerator } from './candidateGenerator.js';
 
 export interface ClaimIndex {
   add(claim: Claim): void;
@@ -15,6 +21,8 @@ export class InMemoryClaimIndex implements ClaimIndex {
   private readonly exactBucket = new Map<string, Set<string>>();
   // Bucket by normalizedSubject for fuzzy predicate matching
   private readonly subjectBucket = new Map<string, Set<string>>();
+  // Bucket by canonicalPredicate for cross-source and synonym lookup
+  private readonly canonicalPredBucket = new Map<string, Set<string>>();
 
   public add(claim: Claim): void {
     if (!claim.id) return;
@@ -22,6 +30,7 @@ export class InMemoryClaimIndex implements ClaimIndex {
 
     const normSub = normalizeText(claim.subject);
     const normPred = normalizeText(claim.predicate);
+    const canonPred = getCanonicalPredicate(claim.predicate);
     const exactKey = `${normSub}::${normPred}`;
 
     // Add to exact bucket
@@ -39,6 +48,14 @@ export class InMemoryClaimIndex implements ClaimIndex {
       this.subjectBucket.set(normSub, subjectSet);
     }
     subjectSet.add(claim.id);
+
+    // Add to canonical predicate bucket
+    let canonSet = this.canonicalPredBucket.get(canonPred);
+    if (!canonSet) {
+      canonSet = new Set<string>();
+      this.canonicalPredBucket.set(canonPred, canonSet);
+    }
+    canonSet.add(claim.id);
   }
 
   public addMany(claims: Claim[]): void {
@@ -52,6 +69,7 @@ export class InMemoryClaimIndex implements ClaimIndex {
 
     const normSub = normalizeText(claim.subject);
     const normPred = normalizeText(claim.predicate);
+    const canonPred = getCanonicalPredicate(claim.predicate);
     const exactKey = `${normSub}::${normPred}`;
 
     const candidateIds = new Set<string>();
@@ -66,15 +84,40 @@ export class InMemoryClaimIndex implements ClaimIndex {
       }
     }
 
-    // 2. Near-predicate matches within same subject (e.g. "node-version" vs "nodejs version")
+    // 2. Canonical predicate bucket matches across compatible subjects (including synonyms)
+    const canonMatches = this.canonicalPredBucket.get(canonPred);
+    if (canonMatches) {
+      for (const id of canonMatches) {
+        if (id !== claim.id && !candidateIds.has(id)) {
+          const candidate = this.claims.get(id);
+          if (
+            candidate &&
+            candidateGenerator.areSubjectsCompatible(claim.subject, candidate.subject, claim.predicate)
+          ) {
+            candidateIds.add(id);
+          }
+        }
+      }
+    }
+
+    // 3. Near-predicate matches within same subject (e.g. "node-version" vs "nodejs version")
     const subjectMatches = this.subjectBucket.get(normSub);
     if (subjectMatches) {
       for (const id of subjectMatches) {
         if (id === claim.id || candidateIds.has(id)) continue;
         const candidate = this.claims.get(id);
         if (candidate) {
-          const sim = calculateCompositeSimilarity(claim.predicate, candidate.predicate);
-          if (sim >= 0.75) {
+          const leafA = claim.predicate.split('_').pop() || claim.predicate;
+          const leafB = candidate.predicate.split('_').pop() || candidate.predicate;
+          const isSyn =
+            arePredicateSynonyms(claim.predicate, candidate.predicate) ||
+            arePredicateSynonyms(leafA, leafB);
+          const sim = isSyn
+            ? 1.0
+            : leafA !== leafB && (claim.predicate.includes('_') || candidate.predicate.includes('_'))
+              ? 0
+              : calculateCompositeSimilarity(claim.predicate, candidate.predicate);
+          if (isSyn || sim >= 0.65) {
             candidateIds.add(id);
           }
         }
@@ -97,6 +140,7 @@ export class InMemoryClaimIndex implements ClaimIndex {
     this.claims.clear();
     this.exactBucket.clear();
     this.subjectBucket.clear();
+    this.canonicalPredBucket.clear();
   }
 
   public size(): number {
