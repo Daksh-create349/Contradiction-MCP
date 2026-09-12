@@ -1,3 +1,5 @@
+import { SemanticMatcher } from '../intelligence/semanticMatcher.js';
+
 export interface ClaimMatchResult {
   matches: boolean;
   subjectSimilarity: number;
@@ -12,6 +14,7 @@ export interface ClaimMatchResult {
 export interface ClaimMatcherOptions {
   subjectThreshold?: number;
   predicateThreshold?: number;
+  enableSemanticMatching?: boolean;
 }
 
 /**
@@ -107,13 +110,46 @@ export function calculateCompositeSimilarity(strA: string, strB: string): number
   return Math.max(tokenSim, editSim);
 }
 
+const PREDICATE_SYNONYM_GROUPS: Array<Set<string>> = [
+  new Set(['port', 'listen_port', 'server_port', 'http_port', 'service_port']),
+  new Set(['max_users', 'concurrent_users', 'max_connections', 'user_limit', 'capacity']),
+  new Set([
+    'jwt_ttl',
+    'token_expiry',
+    'token_ttl',
+    'token_expiration',
+    'session_timeout',
+    'timeout',
+  ]),
+  new Set(['db_engine', 'database_type', 'database_engine', 'db_type', 'database']),
+  new Set(['node_version', 'node', 'nodejs_version', 'node_ver']),
+  new Set(['python_version', 'python', 'python_ver']),
+  new Set(['memory', 'ram', 'min_ram', 'minimum_ram', 'memory_limit']),
+  new Set(['cpu', 'cores', 'min_cpu', 'cpu_cores']),
+];
+
+export function arePredicateSynonyms(predA: string, predB: string): boolean {
+  const a = predA.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const b = predB.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  if (a === b) return true;
+  for (const group of PREDICATE_SYNONYM_GROUPS) {
+    if (group.has(a) && group.has(b)) return true;
+  }
+  return false;
+}
+
 export class ClaimMatcher {
   private readonly subjectThreshold: number;
   private readonly predicateThreshold: number;
+  private readonly semanticMatcher: SemanticMatcher;
 
   constructor(options?: ClaimMatcherOptions) {
     this.subjectThreshold = options?.subjectThreshold ?? 0.75;
-    this.predicateThreshold = options?.predicateThreshold ?? 0.8;
+    this.predicateThreshold = options?.predicateThreshold ?? 0.65;
+    this.semanticMatcher = new SemanticMatcher({
+      enabled: options?.enableSemanticMatching ?? true,
+      threshold: this.predicateThreshold,
+    });
   }
 
   public match(
@@ -126,7 +162,19 @@ export class ClaimMatcher {
     const normPredB = normalizeText(claimB.predicate);
 
     const subjectSimilarity = calculateCompositeSimilarity(claimA.subject, claimB.subject);
-    const predicateSimilarity = calculateCompositeSimilarity(claimA.predicate, claimB.predicate);
+    let predicateSimilarity = calculateCompositeSimilarity(claimA.predicate, claimB.predicate);
+
+    let matchDetail = '';
+    if (arePredicateSynonyms(claimA.predicate, claimB.predicate)) {
+      predicateSimilarity = Math.max(predicateSimilarity, 0.95);
+      matchDetail = ' (matched via predicate synonym dictionary)';
+    } else if (predicateSimilarity < this.predicateThreshold && this.semanticMatcher.isEnabled()) {
+      const semRes = this.semanticMatcher.match(normPredA, normPredB);
+      if (semRes.matched) {
+        predicateSimilarity = Math.max(predicateSimilarity, semRes.confidence);
+        matchDetail = ` (matched via semantic matcher, score: ${semRes.confidence.toFixed(2)})`;
+      }
+    }
 
     const subjectMatches = subjectSimilarity >= this.subjectThreshold;
     const predicateMatches = predicateSimilarity >= this.predicateThreshold;
@@ -140,7 +188,7 @@ export class ClaimMatcher {
     } else if (!predicateMatches) {
       reason = `Predicates '${normPredA}' and '${normPredB}' do not match (similarity: ${predicateSimilarity.toFixed(2)})`;
     } else {
-      reason = `Matches same conceptual fact on subject '${normSubA}' and predicate '${normPredA}'`;
+      reason = `Matches same conceptual fact on subject '${normSubA}' and predicate '${normPredA}'${matchDetail}`;
     }
 
     return {

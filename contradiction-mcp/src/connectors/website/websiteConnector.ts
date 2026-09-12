@@ -3,6 +3,7 @@ import { Connector, ConnectorMetadata, ConnectionTestResult } from '../types/con
 import { FetchResult, ExtractedClaim } from '../types/fetchResult.js';
 import { ValidationError } from '../../domain/types/common.js';
 import { DEFAULT_READ_ONLY_SECURITY, ConnectorSecurityDescriptor } from '../base/security.js';
+import { inferClaimValueType } from '../base/connectorUtils.js';
 import { validateSafeUrl, SsrfError } from './ssrfGuard.js';
 import { logger } from '../../utils/logger.js';
 
@@ -214,51 +215,94 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
     const scope = (metadata.scope as string) || 'public_web';
 
     const kvRegex =
-      /(?:^|\s)([a-zA-Z0-9_\s.-]{2,30}?)\s*[:=]\s*([a-zA-Z0-9_./@~^><=-]{1,40})(?:\s|$)/;
+      /^\s*[-*•]?\s*(?:\*{1,2}|`|__)?([a-zA-Z0-9_\s.-]{2,50}?)(?:\*{1,2}|`|__)?\s*[:=]\s*(?:\*{1,2}|`|__)?([^\r\n#]{1,160}?)(?:\*{1,2}|`|__)?(?:\s+#.*)?$/;
 
     for (let i = 0; i < extractedLines.length; i++) {
       const line = extractedLines[i].trim();
       if (!line) continue;
 
+      let rawKey: string | null = null;
+      let rawVal: string | null = null;
+      let method = 'html_text_pattern';
+
       const match = kvRegex.exec(line);
       if (match) {
-        const rawKey = match[1]
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9_]/g, '_');
-        const rawVal = match[2].trim();
+        const k = match[1].trim();
+        const v = match[2].trim();
+        if (k && v && !k.startsWith('#') && !k.includes('---')) {
+          rawKey = k.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          rawVal = v.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
 
-        if (rawKey.length > 2 && rawVal.length > 0 && !rawVal.startsWith('http')) {
-          const externalId = crypto
-            .createHash('sha256')
-            .update(`website:${url}:${rawKey}:${rawVal}:${i}`)
-            .digest('hex');
-
-          claims.push({
-            subject,
-            predicate: rawKey,
-            value: rawVal,
-            valueType: rawKey.includes('version')
-              ? 'version'
-              : rawKey.includes('port')
-                ? 'quantity'
-                : 'configuration',
-            environment: env,
-            scope,
-            sourceRole: 'documentation',
-            isHistorical: false,
-            observedAt: new Date(),
-            externalId,
-            provenance: {
-              connector: 'website',
-              url,
-              filePath: url,
-              extractionMethod: 'html_text_pattern',
-              observedAt: new Date().toISOString(),
-              evidence: line,
-            },
-          });
+          const qtyMatch = rawVal.match(
+            /(?:at\s+least|minimum|requires|is)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb|kb|g|m|b|ms|s|sec|seconds|minutes|hours))\b/i,
+          );
+          if (rawVal.length > 20 && qtyMatch) {
+            rawVal = qtyMatch[1].trim();
+          }
         }
+      }
+
+      // Prose assertion heuristics
+      if (!rawKey) {
+        const proseRamMatch = line.match(
+          /(?:requires|minimum|needs)\s*(?:at\s+least)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb))\s*(?:of\s+)?(?:ram|memory)/i,
+        );
+        if (proseRamMatch) {
+          rawKey = 'minimum_ram';
+          rawVal = proseRamMatch[1].trim();
+          method = 'prose_heuristic';
+        } else {
+          const prosePortMatch = line.match(/(?:runs|listens)\s+on\s+port\s+(\d{2,5})/i);
+          if (prosePortMatch) {
+            rawKey = 'port';
+            rawVal = prosePortMatch[1].trim();
+            method = 'prose_heuristic';
+          } else {
+            const proseNodeMatch = line.match(
+              /(?:requires\s+)?(?:node|node\.js|nodejs)\s+(?:version\s+)?([v=~^><\d.]+)/i,
+            );
+            if (proseNodeMatch) {
+              rawKey = 'node_version';
+              rawVal = proseNodeMatch[1].trim();
+              method = 'prose_heuristic';
+            }
+          }
+        }
+      }
+
+      if (
+        rawKey &&
+        rawVal &&
+        rawKey.length > 2 &&
+        rawVal.length > 0 &&
+        !rawVal.startsWith('http')
+      ) {
+        const externalId = crypto
+          .createHash('sha256')
+          .update(`website:${url}:${rawKey}:${rawVal}:${i}`)
+          .digest('hex');
+        const valueType = inferClaimValueType(rawKey, rawVal) as any;
+
+        claims.push({
+          subject,
+          predicate: rawKey,
+          value: rawVal,
+          valueType,
+          environment: env,
+          scope,
+          sourceRole: 'documentation',
+          isHistorical: false,
+          observedAt: new Date(),
+          externalId,
+          provenance: {
+            connector: 'website',
+            url,
+            filePath: url,
+            extractionMethod: method,
+            observedAt: new Date().toISOString(),
+            evidence: line,
+          },
+        });
       }
     }
 

@@ -14,9 +14,18 @@ export class SemanticMatcher {
   private readonly enabled: boolean;
   private readonly threshold: number;
 
-  constructor(config: SemanticMatcherConfig = { enabled: false, threshold: 0.75 }) {
-    this.enabled = config.enabled;
-    this.threshold = config.threshold ?? 0.75;
+  constructor(config?: Partial<SemanticMatcherConfig>) {
+    const envEnabled =
+      process.env.SEMANTIC_MATCHING_ENABLED !== undefined
+        ? process.env.SEMANTIC_MATCHING_ENABLED === 'true' ||
+          process.env.SEMANTIC_MATCHING_ENABLED === '1'
+        : process.env.ENABLE_SEMANTIC_MATCHING !== undefined
+          ? process.env.ENABLE_SEMANTIC_MATCHING === 'true' ||
+            process.env.ENABLE_SEMANTIC_MATCHING === '1'
+          : true;
+
+    this.enabled = config?.enabled !== undefined ? config.enabled : envEnabled;
+    this.threshold = config?.threshold ?? 0.65;
   }
 
   public isEnabled(): boolean {

@@ -164,7 +164,16 @@ export class ContradictionEngine {
     }
 
     // 4. Value comparison
-    const resolvedValueType = claimA.valueType === claimB.valueType ? claimA.valueType : undefined;
+    const resolvedValueType =
+      claimA.valueType === claimB.valueType
+        ? claimA.valueType
+        : claimA.valueType && !['configuration', 'string'].includes(claimA.valueType)
+          ? claimA.valueType
+          : claimB.valueType && !['configuration', 'string'].includes(claimB.valueType)
+            ? claimB.valueType
+            : claimA.predicate.includes('version') || claimB.predicate.includes('version')
+              ? 'version'
+              : undefined;
     const comparison = valueComparator.compare(claimA.value, claimB.value, resolvedValueType);
 
     // If values are equivalent after normalization

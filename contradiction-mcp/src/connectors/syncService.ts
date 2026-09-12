@@ -24,6 +24,7 @@ export interface SyncSummary {
   durationMs: number;
   contradictionsFound?: number;
   newContradictions?: number;
+  extractionWarnings?: string[];
   error?: string;
 }
 
@@ -65,6 +66,22 @@ export class SyncService {
 
     // 2. Extract and normalize claims
     const extractedClaims = await connector.extractClaims(fetchResult);
+
+    // Collect extraction warnings
+    const extractionWarnings: string[] = [];
+    if (extractedClaims.length === 0) {
+      extractionWarnings.push(
+        `No factual claims could be extracted from source '${fetchResult.sourceName}'. Check document formatting, headings, or key-value structures.`,
+      );
+    } else {
+      for (const claim of extractedClaims) {
+        if (claim.value.length < 2 && !['0', '1', 'y', 'n'].includes(claim.value.toLowerCase())) {
+          extractionWarnings.push(
+            `Claim '${claim.predicate}' extracted with suspiciously short value: '${claim.value}'`,
+          );
+        }
+      }
+    }
 
     // 3. Upsert Source entity
     const { source } = this.dbManager.upsertSource({
@@ -128,7 +145,7 @@ export class SyncService {
       for (const claimId of touchedClaimIds) {
         try {
           const scanRes = this.discoveryService.scanClaim(claimId, {
-            minConfidence: options?.minConfidence ?? 0.5,
+            minConfidence: options?.minConfidence ?? 0.35,
           });
           contradictionsFound += scanRes.contradictionsFound;
           newContradictions += scanRes.newContradictions;
@@ -156,6 +173,7 @@ export class SyncService {
       durationMs,
       contradictionsFound,
       newContradictions,
+      extractionWarnings: extractionWarnings.length > 0 ? extractionWarnings : undefined,
     };
 
     logger.info('External source synchronization complete', {

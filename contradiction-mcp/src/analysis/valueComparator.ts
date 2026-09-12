@@ -75,9 +75,14 @@ export class ValueComparator {
   // --- VERSION COMPARISON ---
 
   private isLikelyVersion(str: string): boolean {
+    const s = str.trim();
+    // Bare integers without dots or version operators are numbers/quantities, not versions
+    if (/^\d+$/.test(s)) return false;
+
     return (
-      (/\bv?\d+(\.\d+)*\b/i.test(str) && /(version|node|v\d|\d+\.\d+|[><=~^])/i.test(str)) ||
-      Boolean(semver.validRange(str))
+      (/\bv?\d+(\.\d+)+\b/i.test(s) && /(version|node|v\d|\d+\.\d+|[><=~^])/i.test(s)) ||
+      Boolean(semver.valid(s)) ||
+      (Boolean(semver.validRange(s)) && /[\^~><=v.]/.test(s))
     );
   }
 
@@ -224,9 +229,9 @@ export class ValueComparator {
     return !isNaN(Date.parse(str)) && /\d/.test(str);
   }
 
-  public normalizeDate(val: string): string | null {
+  public normalizeDate(val: string, preferredFormat?: 'MM/DD' | 'DD/MM'): string | null {
     // Check if ISO format YYYY-MM-DD
-    const isoMatch = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    const isoMatch = val.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
     if (isoMatch) {
       const year = isoMatch[1];
       const month = isoMatch[2].padStart(2, '0');
@@ -235,16 +240,27 @@ export class ValueComparator {
     }
 
     // Check for DD/MM/YYYY or MM/DD/YYYY format
-    const slashMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const slashMatch = val.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
     if (slashMatch) {
       const p1 = Number(slashMatch[1]);
       const p2 = Number(slashMatch[2]);
       const year = slashMatch[3];
-      if (p1 > 12) {
-        // DD/MM/YYYY
+
+      const formatPref =
+        preferredFormat ||
+        (process.env.DATE_FORMAT === 'DD/MM/YYYY' || process.env.DATE_FORMAT === 'DD/MM'
+          ? 'DD/MM'
+          : 'MM/DD');
+
+      if (p1 > 12 && p2 <= 12) {
+        // Unambiguously DD/MM/YYYY
+        return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
+      } else if (p2 > 12 && p1 <= 12) {
+        // Unambiguously MM/DD/YYYY
+        return `${year}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
+      } else if (formatPref === 'DD/MM') {
         return `${year}-${String(p2).padStart(2, '0')}-${String(p1).padStart(2, '0')}`;
       } else {
-        // MM/DD/YYYY
         return `${year}-${String(p1).padStart(2, '0')}-${String(p2).padStart(2, '0')}`;
       }
     }
@@ -297,21 +313,24 @@ export class ValueComparator {
   // --- PRICE / CURRENCY COMPARISON ---
 
   private isLikelyPrice(str: string): boolean {
-    return /[$€£¥₹]|(?:\b(?:INR|USD|EUR|GBP|JPY)\b)/i.test(str);
+    return /[$\u20AC\u00A3\u00A5\u20B9]|(?:\b(?:INR|USD|EUR|GBP|JPY|CAD|AUD)\b)/i.test(str);
   }
 
   public normalizePrice(val: string): { amount: number; currency?: string } | null {
+    // Explicit Unicode character escape codes prevent charset corruption across environments
     const currencyMap: Record<string, string> = {
-      '₹': 'INR',
+      '\u20B9': 'INR', // ₹
       INR: 'INR',
       $: 'USD',
       USD: 'USD',
-      '€': 'EUR',
+      '\u20AC': 'EUR', // €
       EUR: 'EUR',
-      '£': 'GBP',
+      '\u00A3': 'GBP', // £
       GBP: 'GBP',
-      '¥': 'JPY',
+      '\u00A5': 'JPY', // ¥
       JPY: 'JPY',
+      CAD: 'CAD',
+      AUD: 'AUD',
     };
 
     let currency: string | undefined;
@@ -377,10 +396,72 @@ export class ValueComparator {
   // --- NUMBER / QUANTITY COMPARISON ---
 
   private isLikelyNumber(str: string): boolean {
-    return /^[-+]?\d+(?:\.\d+)?$/.test(str.trim());
+    return /^[-+]?\d+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|ms|s|sec|m|min|h|hr|hours)?$/i.test(str.trim());
+  }
+
+  public normalizeQuantity(val: string): { amount: number; unit?: string; display: string } | null {
+    const trimmed = val.trim().toLowerCase();
+    const match = trimmed.match(/^([-+]?\d+(?:\.\d+)?)\s*([a-z]*)$/i);
+    if (!match) return null;
+
+    const amount = parseFloat(match[1]);
+    const rawUnit = match[2] ? match[2].toLowerCase() : undefined;
+
+    if (isNaN(amount)) return null;
+
+    // Memory / Data size (normalize to bytes)
+    if (rawUnit) {
+      if (['b', 'bytes', 'byte'].includes(rawUnit))
+        return { amount, unit: 'bytes', display: `${amount} B` };
+      if (['kb', 'k'].includes(rawUnit))
+        return { amount: amount * 1024, unit: 'bytes', display: `${amount} KB` };
+      if (['mb', 'm'].includes(rawUnit))
+        return { amount: amount * 1024 * 1024, unit: 'bytes', display: `${amount} MB` };
+      if (['gb', 'g'].includes(rawUnit))
+        return { amount: amount * 1024 * 1024 * 1024, unit: 'bytes', display: `${amount} GB` };
+      if (['tb', 't'].includes(rawUnit))
+        return {
+          amount: amount * 1024 * 1024 * 1024 * 1024,
+          unit: 'bytes',
+          display: `${amount} TB`,
+        };
+
+      // Duration / Time (normalize to milliseconds)
+      if (['ms', 'millisecond', 'milliseconds'].includes(rawUnit))
+        return { amount, unit: 'ms', display: `${amount} ms` };
+      if (['s', 'sec', 'second', 'seconds'].includes(rawUnit))
+        return { amount: amount * 1000, unit: 'ms', display: `${amount} s` };
+      if (['m', 'min', 'minute', 'minutes'].includes(rawUnit))
+        return { amount: amount * 60 * 1000, unit: 'ms', display: `${amount} min` };
+      if (['h', 'hr', 'hour', 'hours'].includes(rawUnit))
+        return { amount: amount * 3600 * 1000, unit: 'ms', display: `${amount} h` };
+    }
+
+    return { amount, unit: rawUnit, display: String(amount) };
   }
 
   private compareNumbers(a: string, b: string, valueType: string): ValueComparisonResult {
+    const qA = this.normalizeQuantity(a);
+    const qB = this.normalizeQuantity(b);
+
+    if (qA && qB && qA.unit && qB.unit && qA.unit === qB.unit) {
+      const equal = Math.abs(qA.amount - qB.amount) < 0.000001;
+      return {
+        comparable: true,
+        equal,
+        normalizedA: qA.display,
+        normalizedB: qB.display,
+        valueType,
+        differenceStrength: equal ? 0.0 : 0.85,
+        differenceType: equal ? undefined : 'NUMERIC_MISMATCH',
+        details: {
+          numberA: qA.amount,
+          numberB: qB.amount,
+          difference: Math.abs(qA.amount - qB.amount),
+        },
+      };
+    }
+
     const numA = parseFloat(a.trim());
     const numB = parseFloat(b.trim());
 

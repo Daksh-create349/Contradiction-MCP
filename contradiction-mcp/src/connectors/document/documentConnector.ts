@@ -6,7 +6,7 @@ import { FetchResult, ExtractedClaim } from '../types/fetchResult.js';
 import { ValidationError, NotFoundError } from '../../domain/types/common.js';
 import type { ClaimEnvironment, ClaimScope, ClaimSourceRole } from '../../domain/entities/claim.js';
 import { DEFAULT_READ_ONLY_SECURITY, ConnectorSecurityDescriptor } from '../base/security.js';
-import { createClaimExternalId } from '../base/connectorUtils.js';
+import { createClaimExternalId, inferClaimValueType } from '../base/connectorUtils.js';
 import { logger } from '../../utils/logger.js';
 
 export interface DocumentInput {
@@ -314,12 +314,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
             subject: subjectBase,
             predicate,
             value: valueStr,
-            valueType:
-              typeof val === 'number'
-                ? 'quantity'
-                : typeof val === 'boolean'
-                  ? 'status'
-                  : 'configuration',
+            valueType: inferClaimValueType(predicate, valueStr) as any,
             environment: env,
             scope,
             sourceRole,
@@ -361,13 +356,14 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         const rawVal = match[3].trim();
         if (rawVal.length > 0 && !rawVal.startsWith('{') && !rawVal.startsWith('[')) {
           const predicate = rawKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-          const externalId = createClaimExternalId('document', filePath, predicate);
+          const externalId = createClaimExternalId('document', filePath, predicate, String(i + 1));
+          const valueType = inferClaimValueType(predicate, rawVal) as any;
 
           claims.push({
             subject: subjectBase,
             predicate,
             value: rawVal,
-            valueType: 'configuration',
+            valueType,
             environment: env,
             scope,
             sourceRole,
@@ -417,12 +413,13 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
             predicate,
             `${rowSubject}:${i + 1}`,
           );
+          const valueType = inferClaimValueType(predicate, val) as any;
 
           claims.push({
             subject: rowSubject,
             predicate,
             value: val,
-            valueType: !isNaN(Number(val)) ? 'quantity' : 'configuration',
+            valueType,
             environment: env,
             scope,
             sourceRole,
@@ -433,9 +430,9 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
               connector: 'document',
               filePath,
               lineRange: [i + 1, i + 1],
-              extractionMethod: 'csv_parse',
+              extractionMethod: 'csv_row',
               observedAt: new Date().toISOString(),
-              evidence: `${header}: ${val}`,
+              evidence: line,
             },
           });
         }
@@ -452,53 +449,111 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     sourceRole: string,
     claims: ExtractedClaim[],
   ): void {
-    // Matches patterns like:
-    // - Node: 20
-    // - **Node.js**: v18.12.0
-    // - port = 8080
-    // - `version`: 1.2.3
-    const mdPattern =
-      /(?:^|\s)(?:[-*]|\d+\.)?\s*(?:\*{1,2}|`|__)?([a-zA-Z0-9_\s.-]{2,30}?)(?:\*{1,2}|`|__)?\s*[:=]\s*(?:\*{1,2}|`|__)?([a-zA-Z0-9_./@~^><=-]{1,40})(?:\*{1,2}|`|__)?(?:\s|$)/;
+    // Anchored key-value pattern supporting bold, code, lists, and multi-token values with spaces
+    const directKvPattern =
+      /^\s*(?:[-*+]|\d+\.)?\s*(?:\*{1,2}|`|__)?([a-zA-Z0-9_\s.-]{2,50}?)(?:\*{1,2}|`|__)?\s*[:=]\s*(?:\*{1,2}|`|__)?([^\r\n#]{1,160}?)(?:\*{1,2}|`|__)?(?:\s+#.*)?$/;
+
+    // Markdown table row pattern
+    const tablePattern = /^\s*\|\s*([^|:\r\n]{2,50}?)\s*\|\s*([^|\r\n]{1,160}?)\s*\|/;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const match = mdPattern.exec(line);
-      if (match) {
-        const key = match[1]
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9_]/g, '_');
-        const val = match[2].trim();
+      if (!line || !line.trim()) continue;
 
-        // Skip markdown links or noisy words
-        if (key.length > 2 && val.length > 0 && !val.startsWith('http')) {
-          const externalId = createClaimExternalId('document', filePath, key);
+      let key: string | null = null;
+      let val: string | null = null;
+      let method = 'markdown_pattern';
 
-          claims.push({
-            subject: subjectBase,
-            predicate: key,
-            value: val,
-            valueType: key.includes('version')
-              ? 'version'
-              : key.includes('port')
-                ? 'quantity'
-                : 'configuration',
-            environment: env,
-            scope,
-            sourceRole,
-            isHistorical: false,
-            observedAt: new Date(),
-            externalId,
-            provenance: {
-              connector: 'document',
-              filePath,
-              lineRange: [i + 1, i + 1],
-              extractionMethod: 'markdown_pattern',
-              observedAt: new Date().toISOString(),
-              evidence: line.trim(),
-            },
-          });
+      // 1. Check direct KV (bold labels, lists, etc.)
+      const directMatch = directKvPattern.exec(line);
+      if (directMatch) {
+        const rawK = directMatch[1].trim();
+        const rawV = directMatch[2].trim();
+        if (rawK && rawV && !rawK.startsWith('#') && !rawK.includes('---')) {
+          key = rawK.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          val = rawV.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
+
+          // Refine value if it contains a sentence with explicit quantity (e.g. "The application requires at least 8 GB")
+          const qtyMatch = val.match(
+            /(?:at\s+least|minimum|requires|is)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb|kb|g|m|b|ms|s|sec|seconds|minutes|hours))\b/i,
+          );
+          if (val.length > 20 && qtyMatch) {
+            val = qtyMatch[1].trim();
+          }
         }
+      }
+
+      // 2. Check markdown table row
+      if (!key) {
+        const tableMatch = tablePattern.exec(line);
+        if (tableMatch && !tableMatch[1].includes('---') && !tableMatch[2].includes('---')) {
+          const rawK = tableMatch[1].trim();
+          const rawV = tableMatch[2].trim();
+          if (
+            rawK.toLowerCase() !== 'property' &&
+            rawK.toLowerCase() !== 'setting' &&
+            rawK.toLowerCase() !== 'key'
+          ) {
+            key = rawK.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            val = rawV.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
+            method = 'markdown_table';
+          }
+        }
+      }
+
+      // 3. Check prose assertion heuristics
+      if (!key) {
+        const proseRamMatch = line.match(
+          /(?:requires|minimum|needs)\s*(?:at\s+least)?\s*(\d+(?:\.\d+)?\s*(?:gb|mb|tb))\s*(?:of\s+)?(?:ram|memory)/i,
+        );
+        if (proseRamMatch) {
+          key = 'minimum_ram';
+          val = proseRamMatch[1].trim();
+          method = 'prose_heuristic';
+        } else {
+          const prosePortMatch = line.match(/(?:runs|listens)\s+on\s+port\s+(\d{2,5})/i);
+          if (prosePortMatch) {
+            key = 'port';
+            val = prosePortMatch[1].trim();
+            method = 'prose_heuristic';
+          } else {
+            const proseNodeMatch = line.match(
+              /(?:requires\s+)?(?:node|node\.js|nodejs)\s+(?:version\s+)?([v=~^><\d.]+)/i,
+            );
+            if (proseNodeMatch) {
+              key = 'node_version';
+              val = proseNodeMatch[1].trim();
+              method = 'prose_heuristic';
+            }
+          }
+        }
+      }
+
+      if (key && val && key.length > 2 && val.length > 0 && !val.startsWith('http')) {
+        // Line number in distinctKey avoids externalId collision across multiple occurrences in same file
+        const externalId = createClaimExternalId('document', filePath, key, String(i + 1));
+        const valueType = inferClaimValueType(key, val) as any;
+
+        claims.push({
+          subject: subjectBase,
+          predicate: key,
+          value: val,
+          valueType,
+          environment: env,
+          scope,
+          sourceRole,
+          isHistorical: false,
+          observedAt: new Date(),
+          externalId,
+          provenance: {
+            connector: 'document',
+            filePath,
+            lineRange: [i + 1, i + 1],
+            extractionMethod: method,
+            observedAt: new Date().toISOString(),
+            evidence: line.trim(),
+          },
+        });
       }
     }
   }
@@ -545,18 +600,15 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
               'document',
               filePath,
               key,
-              `p${page.pageNumber}`,
+              `p${page.pageNumber}_l${i + 1}`,
             );
+            const valueType = inferClaimValueType(key, val) as any;
 
             claims.push({
               subject: subjectBase,
               predicate: key,
               value: val,
-              valueType: key.includes('version')
-                ? 'version'
-                : key.includes('port')
-                  ? 'quantity'
-                  : 'configuration',
+              valueType,
               environment: env as ClaimEnvironment,
               scope: scope as ClaimScope,
               sourceRole: sourceRole as ClaimSourceRole,

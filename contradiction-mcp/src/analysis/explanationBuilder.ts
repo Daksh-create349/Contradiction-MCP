@@ -36,8 +36,17 @@ export class ExplanationBuilder {
     }
 
     // 3. What each source claims
-    const claimAStatement = `${sourceAName} reports '${claimA.value}' (observed on ${claimA.observedAt.toISOString().split('T')[0]}).`;
-    const claimBStatement = `${sourceBName} reports '${claimB.value}' (observed on ${claimB.observedAt.toISOString().split('T')[0]}).`;
+    const isIntraDocument = claimA.sourceId === claimB.sourceId;
+    const lineA = Array.isArray(claimA.metadata?.lineRange) ? claimA.metadata.lineRange[0] : null;
+    const lineB = Array.isArray(claimB.metadata?.lineRange) ? claimB.metadata.lineRange[0] : null;
+
+    const claimAStatement = isIntraDocument
+      ? `${sourceAName}${lineA ? ` (line ${lineA})` : ''} reports '${claimA.value}'.`
+      : `${sourceAName} reports '${claimA.value}' (observed on ${claimA.observedAt.toISOString().split('T')[0]}).`;
+
+    const claimBStatement = isIntraDocument
+      ? `Within the same file/source${lineB ? ` (line ${lineB})` : ''}, conflictingly asserted as '${claimB.value}'.`
+      : `${sourceBName} reports '${claimB.value}' (observed on ${claimB.observedAt.toISOString().split('T')[0]}).`;
 
     // 4. Why the values conflict
     let conflictDetail = '';

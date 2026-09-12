@@ -9,6 +9,18 @@ export interface ContextAnalysisResult {
   divergenceDimensions: string[];
 }
 
+export function normalizeEnvironment(env?: string | null): string {
+  if (!env) return 'unknown';
+  const clean = env.toLowerCase().trim();
+  if (['prod', 'production', 'live', 'prd'].includes(clean)) return 'production';
+  if (['dev', 'development', 'local'].includes(clean)) return 'development';
+  if (['stage', 'staging', 'stg'].includes(clean)) return 'staging';
+  if (['test', 'testing', 'qa', 'uat', 'ci'].includes(clean)) return 'testing';
+  if (['doc', 'docs', 'documentation'].includes(clean)) return 'documentation';
+  if (['deploy', 'deployment'].includes(clean)) return 'deployment';
+  return clean || 'unknown';
+}
+
 export class ContextAnalyzer {
   public analyze(claimA: Claim, claimB: Claim): ContextAnalysisResult {
     const divergences: string[] = [];
@@ -115,8 +127,8 @@ export class ContextAnalyzer {
     }
 
     // 4. Check Environment Divergence (e.g. dev vs prod, staging vs prod)
-    const envA = (claimA.environment || 'unknown').toLowerCase();
-    const envB = (claimB.environment || 'unknown').toLowerCase();
+    const envA = normalizeEnvironment(claimA.environment);
+    const envB = normalizeEnvironment(claimB.environment);
 
     const isEnvDisjoint =
       (envA === 'development' && (envB === 'production' || envB === 'deployment')) ||

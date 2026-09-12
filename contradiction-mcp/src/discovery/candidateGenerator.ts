@@ -1,5 +1,10 @@
 import { Claim } from '../domain/entities/claim.js';
-import { normalizeText, calculateCompositeSimilarity } from '../analysis/claimMatcher.js';
+import {
+  normalizeText,
+  calculateCompositeSimilarity,
+  arePredicateSynonyms,
+} from '../analysis/claimMatcher.js';
+import { EntityResolver } from '../intelligence/entityResolver.js';
 
 export interface ClaimPair {
   claimA: Claim;
@@ -11,7 +16,33 @@ export function getCanonicalPairKey(idA: string, idB: string): string {
   return idA < idB ? `${idA}::${idB}` : `${idB}::${idA}`;
 }
 
+export function getCanonicalSubjectKey(subject: string, entityResolver: EntityResolver): string {
+  const clean = (subject || '').trim();
+  if (!clean) return '';
+
+  const norm = normalizeText(clean);
+  if (!norm) return '';
+
+  // 1. Check if normalized representation matches an industry alias group in EntityResolver (api, frontend, auth, db, etc.)
+  const normEntity = entityResolver.normalize(clean);
+  const defaultSet = (entityResolver as any).defaultAliases?.get(normEntity);
+  if (defaultSet && defaultSet.size > 0) {
+    const canonicalAlias = Array.from(defaultSet as Set<string>).sort()[0];
+    return `alias:${canonicalAlias}`;
+  }
+
+  // 2. Token-sorted canonical key so "Project Alpha" and "alpha-project" produce "alpha project"
+  const tokens = norm.split(' ').sort().join(' ');
+  return tokens;
+}
+
 export class CandidateGenerator {
+  private readonly entityResolver: EntityResolver;
+
+  constructor(entityResolver?: EntityResolver) {
+    this.entityResolver = entityResolver ?? new EntityResolver();
+  }
+
   public generatePairs(claims: Claim[]): ClaimPair[] {
     if (claims.length < 2) {
       return [];
@@ -19,18 +50,18 @@ export class CandidateGenerator {
 
     const pairsMap = new Map<string, ClaimPair>();
 
-    // 1. Group claims by normalized subject
+    // 1. Group claims by canonical subject key in O(N) linear time
     const subjectGroups = new Map<string, Claim[]>();
     for (const claim of claims) {
-      const normSub = normalizeText(claim.subject);
-      if (!normSub) continue;
+      const key = getCanonicalSubjectKey(claim.subject, this.entityResolver);
+      if (!key) continue;
 
-      let group = subjectGroups.get(normSub);
-      if (!group) {
-        group = [];
-        subjectGroups.set(normSub, group);
+      let list = subjectGroups.get(key);
+      if (!list) {
+        list = [];
+        subjectGroups.set(key, list);
       }
-      group.push(claim);
+      list.push(claim);
     }
 
     // 2. Inside each subject group, only pair claims that share compatible predicates
@@ -49,7 +80,7 @@ export class CandidateGenerator {
         list.push(claim);
       }
 
-      // 2a. All claims sharing exact normalized predicate are pairs
+      // 2a. All claims sharing exact normalized predicate are pairs (including intra-document pairs)
       for (const [, predClaims] of predGroups) {
         if (predClaims.length < 2) continue;
         for (let i = 0; i < predClaims.length; i++) {
@@ -70,15 +101,17 @@ export class CandidateGenerator {
         }
       }
 
-      // 2b. Check cross-predicate pairs within the same subject if predicates are similar
+      // 2b. Check cross-predicate pairs within the same subject if predicates are synonyms or similar
       const predKeys = Array.from(predGroups.keys());
       for (let i = 0; i < predKeys.length; i++) {
         for (let j = i + 1; j < predKeys.length; j++) {
           const pred1 = predKeys[i];
           const pred2 = predKeys[j];
 
-          const similarity = calculateCompositeSimilarity(pred1, pred2);
-          if (similarity >= 0.75) {
+          const isSynonym = arePredicateSynonyms(pred1, pred2);
+          const similarity = isSynonym ? 1.0 : calculateCompositeSimilarity(pred1, pred2);
+
+          if (isSynonym || similarity >= 0.65) {
             const list1 = predGroups.get(pred1)!;
             const list2 = predGroups.get(pred2)!;
 

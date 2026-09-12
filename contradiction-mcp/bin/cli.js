@@ -51,6 +51,7 @@ Examples:
 
   const nodeExecutable = process.execPath;
   const isGlobalNpx = !fs.existsSync(serverDist);
+  const stableDbPath = path.join(home, '.contradiction-mcp', 'contradiction.db');
 
   // If installed via npm global or npx, use npx contradiction-mcp as command, else point to local dist/index.js
   const serverConfig = isGlobalNpx
@@ -59,6 +60,7 @@ Examples:
         args: ['-y', 'contradiction-mcp'],
         env: {
           NODE_ENV: 'production',
+          DATABASE_PATH: stableDbPath,
           MCP_TRANSPORT: 'stdio',
         },
       }
@@ -67,7 +69,7 @@ Examples:
         args: [serverDist],
         env: {
           NODE_ENV: 'production',
-          DATABASE_PATH: path.join(projectRoot, 'data', 'contradiction.db'),
+          DATABASE_PATH: stableDbPath,
           MCP_TRANSPORT: 'stdio',
           LOG_LEVEL: 'error',
         },

@@ -198,7 +198,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         .min(0)
         .max(1)
         .optional()
-        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.5)'),
+        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
       includeDismissed: z
         .boolean()
         .optional()
@@ -257,7 +257,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         .min(0)
         .max(1)
         .optional()
-        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.5)'),
+        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
     },
     async (args) => {
       try {
@@ -295,6 +295,81 @@ export function createMcpServer(options: ServerOptions): McpServer {
                   error: safe.message,
                   code: safe.code,
                   claimId: args.claimId,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 4b. Tool: scan_source_for_contradictions
+  registerTool(
+    'scan_source_for_contradictions',
+    'Scans all claims from a specific source, file, or repository for contradictions against all other claims in the database.',
+    {
+      sourceId: z
+        .string()
+        .min(1)
+        .describe('The unique ID, name, URI, or file path of the source to scan'),
+      minConfidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Maximum number of contradictions to return (default: 50)'),
+      includeDismissed: z
+        .boolean()
+        .optional()
+        .describe('Whether to include previously dismissed contradictions (default: false)'),
+    },
+    async (args) => {
+      try {
+        logger.debug('Executing scan_source_for_contradictions tool', args);
+
+        if (!options.discoveryService) {
+          throw new Error('DiscoveryService is not configured on this server instance');
+        }
+
+        const summary = options.discoveryService.scanSource(args.sourceId, {
+          minConfidence: args.minConfidence,
+          limit: args.limit,
+          includeDismissed: args.includeDismissed,
+        });
+
+        return {
+          isError: false,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(summary, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.error('Error during scan_source_for_contradictions execution', {
+          error: String(error),
+        });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  error: safe.message,
+                  code: safe.code,
+                  sourceId: args.sourceId,
                 },
                 null,
                 2,
