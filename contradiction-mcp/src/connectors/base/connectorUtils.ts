@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { ClaimValueType } from '../../domain/entities/claim.js';
 
 /**
  * Sanitizes an error message or string to ensure tokens, secrets,
@@ -76,7 +77,7 @@ export function hashContent(content: string): string {
  * Heuristically infers the most accurate ClaimValueType from predicate and value
  * (e.g. quantity, version, price, date, status, etc.).
  */
-export function inferClaimValueType(predicate: string, value: string): string {
+export function inferClaimValueType(predicate: string, value: string): ClaimValueType {
   const pred = (predicate || '').toLowerCase().trim();
   const val = (value || '').toLowerCase().trim();
 

@@ -370,7 +370,6 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     claims: ExtractedClaim[],
     observedAt: Date,
   ): void {
-    let emailSubject = '';
     let emailDate: Date | null = null;
     const bodyLines: string[] = [];
     let isBody = false;
@@ -380,10 +379,6 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         if (line.trim() === '') {
           isBody = true;
           continue;
-        }
-        const subMatch = line.match(/^Subject:\s*(.+)$/i);
-        if (subMatch) {
-          emailSubject = subMatch[1].trim();
         }
         const dateMatch = line.match(/^Date:\s*(.+)$/i);
         if (dateMatch) {
@@ -435,7 +430,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           subject: subjectBase,
           predicate,
           value: valueStr,
-          valueType: inferClaimValueType(predicate, valueStr) as any,
+          valueType: inferClaimValueType(predicate, valueStr),
           environment: env,
           scope,
           sourceRole,
@@ -497,7 +492,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         if (rawVal.length > 0 && !rawVal.startsWith('{') && !rawVal.startsWith('[')) {
           const predicate = rawKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
           const externalId = createClaimExternalId('document', filePath, predicate, String(i + 1));
-          const valueType = inferClaimValueType(predicate, rawVal) as any;
+          const valueType = inferClaimValueType(predicate, rawVal);
 
           claims.push({
             subject: subjectBase,
@@ -554,7 +549,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
             predicate,
             `${rowSubject}:${i + 1}`,
           );
-          const valueType = inferClaimValueType(predicate, val) as any;
+          const valueType = inferClaimValueType(predicate, val);
 
           claims.push({
             subject: rowSubject,
@@ -710,7 +705,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
 
       if (key && val && key.length > 2 && val.length > 0 && !val.startsWith('http')) {
         const externalId = createClaimExternalId('document', filePath, key, String(i + 1));
-        const valueType = inferClaimValueType(key, val) as any;
+        const valueType = inferClaimValueType(key, val);
 
         claims.push({
           subject: subjectBase,
@@ -782,7 +777,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
               key,
               `p${page.pageNumber}_l${i + 1}`,
             );
-            const valueType = inferClaimValueType(key, val) as any;
+            const valueType = inferClaimValueType(key, val);
 
             claims.push({
               subject: subjectBase,

@@ -41,6 +41,15 @@ export class EntityResolver {
     }
   }
 
+  public getCanonicalAlias(raw: string): string | null {
+    const norm = this.normalize(raw);
+    const set = this.defaultAliases.get(norm);
+    if (set && set.size > 0) {
+      return Array.from(set).sort()[0];
+    }
+    return null;
+  }
+
   /**
    * Canonicalizes an entity name by stripping delimiters, common redundant words, and casing.
    */

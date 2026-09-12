@@ -299,7 +299,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
           .createHash('sha256')
           .update(`website:${url}:${rawKey}:${rawVal}:${i}`)
           .digest('hex');
-        const valueType = inferClaimValueType(rawKey, rawVal) as any;
+        const valueType = inferClaimValueType(rawKey, rawVal);
 
         claims.push({
           subject,

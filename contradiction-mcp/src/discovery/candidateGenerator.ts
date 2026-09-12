@@ -1,8 +1,6 @@
 import { Claim } from '../domain/entities/claim.js';
 import {
   normalizeText,
-  calculateCompositeSimilarity,
-  arePredicateSynonyms,
   getCanonicalPredicate,
   isSystemLevelPredicate,
   isGenericOrDocumentSubject,
@@ -27,10 +25,8 @@ export function getCanonicalSubjectKey(subject: string, entityResolver: EntityRe
   if (!norm) return '';
 
   // 1. Check if normalized representation matches an industry alias group in EntityResolver (api, frontend, auth, db, etc.)
-  const normEntity = entityResolver.normalize(clean);
-  const defaultSet = (entityResolver as any).defaultAliases?.get(normEntity);
-  if (defaultSet && defaultSet.size > 0) {
-    const canonicalAlias = Array.from(defaultSet as Set<string>).sort()[0];
+  const canonicalAlias = entityResolver.getCanonicalAlias(clean);
+  if (canonicalAlias) {
     return `alias:${canonicalAlias}`;
   }
 
