@@ -1,0 +1,54 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: contradiction-mcp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: contradiction-mcp
+        run: npm ci
+
+      - name: Typecheck TypeScript
+        working-directory: contradiction-mcp
+        run: npm run typecheck
+
+      - name: Lint source code
+        working-directory: contradiction-mcp
+        run: npm run lint
+
+      - name: Verify code formatting
+        working-directory: contradiction-mcp
+        run: npm run format:check
+
+      - name: Run unit & integration tests with coverage
+        working-directory: contradiction-mcp
+        run: npm run test:coverage
+
+      - name: Security & Dependency check
+        working-directory: contradiction-mcp
+        run: npm run security:check
+
+      - name: Build production artifacts
+        working-directory: contradiction-mcp
+        run: npm run build

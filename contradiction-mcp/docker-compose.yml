@@ -1,0 +1,24 @@
+services:
+  contradiction-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contradiction-mcp-server
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - SERVER_NAME=contradiction-mcp
+      - SERVER_VERSION=0.1.0
+      - MCP_TRANSPORT=http
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=3000
+      - DATABASE_PATH=/app/data/contradiction.db
+    volumes:
+      - contradiction-data:/app/data
+
+volumes:
+  contradiction-data:
+    driver: local

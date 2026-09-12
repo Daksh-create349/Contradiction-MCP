@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build and test outputs
+dist/
+build/
+coverage/
+.vitest/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Databases and runtime data
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE & tool generated configs
+.agents/
+.cursor/
+.DS_Store
+*.log
+npm-debug.log*
+Thumbs.db

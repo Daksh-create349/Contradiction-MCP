@@ -1,0 +1,66 @@
+{
+  "name": "contradiction-mcp",
+  "version": "0.1.0",
+  "description": "Production-quality MCP server for detecting conflicting and inconsistent information across connected sources",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "contradiction-mcp": "./bin/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && mkdir -p dist/storage/migrations && cp src/storage/migrations/*.sql dist/storage/migrations/",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "seed": "tsx -e \"import { DatabaseManager } from './src/storage/database.js'; import { seedDemoData } from './src/scripts/seedDemoData.js'; const db = new DatabaseManager('./data/contradiction.db'); db.initialize(); seedDemoData(db); db.close();\"",
+    "smoke": "tsx src/scripts/liveMcpSmoke.ts",
+    "migrate": "tsx -e \"import { DatabaseManager } from './src/storage/database.js'; const db = new DatabaseManager('./data/contradiction.db'); db.initialize(); console.log('Migrations executed successfully'); db.close();\"",
+    "backup": "tsx -e \"import { DatabaseManager } from './src/storage/database.js'; import { BackupService } from './src/storage/backupService.js'; const db = new DatabaseManager('./data/contradiction.db'); db.initialize(); const b = new BackupService(db); b.createBackup('./backups').then(p => { console.log('Backup created:', p); db.close(); });\"",
+    "restore": "tsx -e \"import { DatabaseManager } from './src/storage/database.js'; import { BackupService } from './src/storage/backupService.js'; const db = new DatabaseManager('./data/contradiction.db'); const b = new BackupService(db); const latest = process.argv[2]; if (!latest) { console.error('Provide backup file path: npm run restore <path>'); process.exit(1); } b.restoreBackup(latest, './data/contradiction.db'); console.log('Restored successfully');\"",
+    "health": "tsx -e \"import { DatabaseManager } from './src/storage/database.js'; import { HealthService } from './src/services/healthService.js'; import { config } from './src/config/env.js'; const db = new DatabaseManager('./data/contradiction.db'); db.initialize(); const h = new HealthService(db, config); h.getHealth().then(r => { console.log(JSON.stringify(r, null, 2)); db.close(); });\"",
+    "live-test": "npm run smoke && vitest run tests/protocol/mcpStreamableHttp.test.ts",
+    "verify": "npm run build && tsx src/scripts/comprehensiveVerification.ts",
+    "demo": "npm run build && tsx src/scripts/finalLiveDemo.ts",
+    "security:check": "npm audit",
+    "install-mcp": "node scripts/install-mcp.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "contradiction-detection",
+    "knowledge-consistency",
+    "ai-agent"
+  ],
+  "author": "Contradiction MCP Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/core": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "pdf-parse": "^2.4.5",
+    "semver": "^7.8.5",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.20.2",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}

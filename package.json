@@ -1,0 +1,14 @@
+{
+  "name": "contradiction-mcp-workspace",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix contradiction-mcp run build",
+    "start": "npm --prefix contradiction-mcp run start",
+    "dev": "npm --prefix contradiction-mcp run dev",
+    "typecheck": "npm --prefix contradiction-mcp run typecheck",
+    "lint": "npm --prefix contradiction-mcp run lint",
+    "format:check": "npm --prefix contradiction-mcp run format:check",
+    "format": "npm --prefix contradiction-mcp run format",
+    "test": "npm --prefix contradiction-mcp run test"
+  }
+}

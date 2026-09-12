@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Output
+dist/
+build/
+coverage/
+.vitest/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Databases & SQLite files
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE configs
+.agents/
+.cursor/
+
+# Logs
+*.log
+npm-debug.log*
+
+# System
+.DS_Store
+Thumbs.db

@@ -1,0 +1,5 @@
+{
+  "extends": "./contradiction-mcp/tsconfig.json",
+  "include": ["contradiction-mcp/src/**/*", "contradiction-mcp/tests/**/*"],
+  "exclude": ["node_modules", "contradiction-mcp/dist"]
+}
