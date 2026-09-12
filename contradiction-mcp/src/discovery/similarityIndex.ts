@@ -92,7 +92,11 @@ export class InMemoryClaimIndex implements ClaimIndex {
           const candidate = this.claims.get(id);
           if (
             candidate &&
-            candidateGenerator.areSubjectsCompatible(claim.subject, candidate.subject, claim.predicate)
+            candidateGenerator.areSubjectsCompatible(
+              claim.subject,
+              candidate.subject,
+              claim.predicate,
+            )
           ) {
             candidateIds.add(id);
           }
@@ -114,7 +118,8 @@ export class InMemoryClaimIndex implements ClaimIndex {
             arePredicateSynonyms(leafA, leafB);
           const sim = isSyn
             ? 1.0
-            : leafA !== leafB && (claim.predicate.includes('_') || candidate.predicate.includes('_'))
+            : leafA !== leafB &&
+                (claim.predicate.includes('_') || candidate.predicate.includes('_'))
               ? 0
               : calculateCompositeSimilarity(claim.predicate, candidate.predicate);
           if (isSyn || sim >= 0.65) {

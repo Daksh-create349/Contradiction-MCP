@@ -247,8 +247,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     const claims: ExtractedClaim[] = [];
 
     // Auto-detect H1 subject if subject is not explicitly set
-    const subjectBase =
-      (metadata.subject as string) || path.basename(filePath, fileExtension);
+    const subjectBase = (metadata.subject as string) || path.basename(filePath, fileExtension);
     const defaultScope = (metadata.scope as string) || 'file';
     const defaultEnv = (metadata.environment as string) || 'unknown';
     const defaultRole =
