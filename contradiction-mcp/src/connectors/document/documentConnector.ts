@@ -4,6 +4,7 @@ import { PDFParse } from 'pdf-parse';
 import { Connector, ConnectorMetadata, ConnectionTestResult } from '../types/connector.js';
 import { FetchResult, ExtractedClaim } from '../types/fetchResult.js';
 import { ValidationError, NotFoundError } from '../../domain/types/common.js';
+import type { ClaimEnvironment, ClaimScope, ClaimSourceRole } from '../../domain/entities/claim.js';
 import { DEFAULT_READ_ONLY_SECURITY, ConnectorSecurityDescriptor } from '../base/security.js';
 import { createClaimExternalId } from '../base/connectorUtils.js';
 import { logger } from '../../utils/logger.js';
@@ -556,9 +557,9 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
                 : key.includes('port')
                   ? 'quantity'
                   : 'configuration',
-              environment: env as any,
-              scope: scope as any,
-              sourceRole: sourceRole as any,
+              environment: env as ClaimEnvironment,
+              scope: scope as ClaimScope,
+              sourceRole: sourceRole as ClaimSourceRole,
               isHistorical: false,
               observedAt: new Date(),
               externalId,

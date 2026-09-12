@@ -1,107 +1,138 @@
-# Contradiction MCP
+<div align="center">
 
-[![CI](https://github.com/contradiction-mcp/contradiction-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/contradiction-mcp/contradiction-mcp/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
-[![MCP](https://img.shields.io/badge/MCP-2.0.0-blue.svg)](https://modelcontextprotocol.io/)
-[![Protocol](https://img.shields.io/badge/Protocol-2026--07--28-purple.svg)](https://modelcontextprotocol.io/)
+# ⚡ Contradiction MCP
 
-A production-grade Model Context Protocol (MCP) server designed to continuously detect, track, explain, and resolve conflicting, inconsistent, outdated, or mutually incompatible factual assertions across heterogeneous systems—code repositories, deployment manifests, technical documentation, API specifications, and public web endpoints.
+**Autonomous Cross-Source Inconsistency & Contradiction Intelligence Engine for AI Agents**
 
----
+[![CI Pipeline](https://img.shields.io/github/actions/workflow/status/Daksh-create349/Contradiction-MCP/ci.yml?branch=main&label=CI%20Pipeline&logo=githubactions&logoColor=white&style=flat-square)](https://github.com/Daksh-create349/Contradiction-MCP/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?logo=open-source-initiative&logoColor=white&style=flat-square)](../LICENSE)
+[![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white&style=flat-square)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
+[![MCP Specification](https://img.shields.io/badge/MCP-2.0.0-8A2BE2.svg?logo=anthropic&logoColor=white&style=flat-square)](https://modelcontextprotocol.io/)
+[![Vitest Tests](https://img.shields.io/badge/Tests-169%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
+[![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
+[![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 
-## Table of Contents
+<p align="center">
+  <a href="#-the-problem-it-solves">Problem</a> •
+  <a href="#-core-capabilities">Capabilities</a> •
+  <a href="#-system-architecture">Architecture</a> •
+  <a href="#-one-command-quickstart-all-ides">Quickstart</a> •
+  <a href="#-mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
+  <a href="#-step-by-step-hands-on-tutorial">Tutorials</a> •
+  <a href="#-documentation-index">Docs</a> •
+  <a href="#-license">License</a>
+</p>
 
-- [The Problem It Solves](#the-problem-it-solves)
-- [Core Capabilities](#core-capabilities)
-- [System Architecture](#system-architecture)
-- [One-Command Quickstart (All IDEs)](#one-command-quickstart-all-ides)
-- [Manual IDE Client Configuration](#manual-ide-client-configuration)
-- [Complete Command Reference](#complete-command-reference)
-- [Environment Variables](#environment-variables)
-- [Step-by-Step Hands-On Testing Tutorial](#step-by-step-hands-on-testing-tutorial)
-- [MCP Interface: 21 Tools, 4 Resources, 2 Prompts](#mcp-interface-21-tools-4-resources-2-prompts)
-- [Example Tool Payloads & Responses](#example-tool-payloads--responses)
-- [Production Operations & Runbook](#production-operations--runbook)
-- [Docker & Docker Compose](#docker--docker-compose)
-- [Automated Tests & Quality Gates](#automated-tests--quality-gates)
-- [Documentation Index](#documentation-index)
-- [License](#license)
+</div>
 
 ---
 
-## The Problem It Solves
+## 📌 The Problem It Solves
 
-Modern engineering workflows rely on dispersed, uncoordinated sources of truth:
+Modern engineering ecosystems rely on fragmented, uncoordinated sources of truth:
 
-- **Code repositories**: `package.json`, `Dockerfile`, `.github/workflows/*.yml`
-- **Deployment manifests**: Helm charts, Kubernetes YAML, JSON configuration files
-- **Technical documentation**: Architecture guides, `README.md`, developer portals
-- **Public endpoints**: Web pages, status feeds, API specifications
+- **Code Repositories**: `package.json`, `Dockerfile`, CI/CD workflows (`.github/workflows/*.yml`)
+- **Deployment Manifests**: Kubernetes YAML, Helm values, cloud environment configurations
+- **Technical Documentation**: Architecture guides, runbooks, developer setup portals, READMEs
+- **Public Endpoints**: OpenAPI/Swagger schemas, status feeds, live web documentation
 
-When information diverges—such as a deployment manifest specifying Node 22 while documentation references Node 18, or two documents listing contradictory port bindings or database engines—silent regressions, operational outages, and flawed decisions occur.
+When these systems diverge—for example, a Kubernetes manifest deploying Node.js 22 while technical documentation instructs developers to run Node.js 18, or conflicting database engine versions across staging and production—silent regressions, deploy failures, and hallucinations in LLM reasoning occur.
 
 **Contradiction MCP** bridges these silos through automated multi-source ingestion, context-aware contradiction reasoning, source authority and freshness scoring, human-in-the-loop review/resolution workflows, and immutable audit trails.
 
 ---
 
-## Core Capabilities
+## ✨ Core Capabilities
 
-- **Zero Mocks**: Real SQLite storage, real filesystem I/O, real HTTP fetchers with pre-flight DNS validation.
-- **Context-Aware Contradiction Engine**: Eliminates false positives by reasoning across environments (`production` vs. `development`), scopes (`file` vs. `deployment`), roles (`deployment` vs. `documentation`), and matrix compatibility sets.
-- **SemVer Range Satisfaction**: Detects genuine major/minor incompatibilities using deterministic version algebra.
-- **Multi-Source Ingestion**:
-  - **GitHub Connector**: Inspects runtime engines, Dockerfiles, workflows, and READMEs.
-  - **Local Document Connector**: Ingests JSON, YAML, Markdown, CSV, TXT, and PDF files with exact page- and line-numbered citations and directory root containment.
-  - **Public Website Connector**: Web crawler hardened with multi-layer SSRF protection against loopback, private IPv4/IPv6, and cloud metadata endpoints.
+- **Zero Mocks**: Real embedded SQLite with Write-Ahead Logging (WAL), real filesystem I/O with directory containment guards, and real HTTP fetchers with pre-flight DNS validation.
+- **Context-Aware Contradiction Engine**: Eliminates false positives by understanding semantic contexts:
+  - **Environments**: `production` vs `staging` vs `development`
+  - **Scopes**: `file` vs `deployment` vs `cluster`
+  - **Roles**: `source_of_truth` vs `deployment` vs `documentation`
+- **Deterministic SemVer Mathematics**: Employs rigorous version range satisfaction algebra rather than naive string comparisons.
+- **Multi-Source Ingestion Pipeline**:
+  - **GitHub Connector**: Analyzes runtime engines, Dockerfiles, GitHub Actions workflows, and READMEs.
+  - **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, and PDF documents with exact page- and line-numbered evidence citations.
+  - **Public Website Connector**: Web crawler hardened with multi-layer SSRF protection against loopback, private IPv4/IPv6 CIDRs, and cloud metadata endpoints (`169.254.169.254`).
 - **Scoring & Advisory Intelligence**:
-  - `AuthorityScorer`: Evaluates source role hierarchies and trust weights.
+  - `AuthorityScorer`: Ranks conflicting claims based on source hierarchy and origin credibility.
   - `FreshnessScorer`: Applies exponential half-life time decay models.
-  - `EvidenceEvaluator`: Scores citation directness and snippet quality.
+  - `EvidenceEvaluator`: Quantifies citation directness and snippet quality.
   - `ResolutionAdvisor`: Generates actionable resolution recommendations without mutating state without operator consent.
-- **Review & Resolution Workflows**: Full lifecycle transitions (`OPEN`, `REVIEWED`, `RESOLVED`, `DISMISSED`, `REOPENED`) with append-only audit histories.
-- **Multi-Transport Support**: Runs over standard Stdio (for Claude Desktop, Antigravity, Cursor) or streamable HTTP/SSE with Bearer API key authentication and rate limiting.
+- **Review & Resolution Workflows**: Full lifecycle transitions (`OPEN` → `REVIEWED` → `RESOLVED` / `DISMISSED` → `REOPENED`) backed by append-only audit histories.
+- **Dual Transport Architecture**: Operates over standard **Stdio** (for Claude Desktop, Google Antigravity, Cursor) or **Streamable HTTP/SSE** with Bearer API key authentication and sliding rate limiting.
 
 ---
 
-## System Architecture
+## 🏛️ System Architecture
 
-```text
-+-----------------------------------------------------------------------------------+
-|                                MCP Protocol Layer                                 |
-|   - StdioServerTransport (CLI / IDE clients: Claude Desktop, Antigravity, Cursor)  |
-|   - Streamable HTTP Transport (POST /mcp with API key auth & sliding rate limits)  |
-|   - 21 MCP Tools | 4 Resources | 2 Prompt Templates                               |
-+-----------------------------------------------------------------------------------+
-                                         |
-                                         v
-+-----------------------------------------------------------------------------------+
-|                             Operational & Domain Services                         |
-|   - AnalysisService        - ReviewService          - SyncService                 |
-|   - DiscoveryService       - HealthService          - MetricsService              |
-|   - BackupService          - SchedulerService       - RateLimiter                 |
-+-----------------------------------------------------------------------------------+
-         |                                |                                |
-         v                                v                                v
-+-------------------+            +-------------------+            +-------------------+
-|  Ingestion Layer  |            |  Intelligence &   |            |   Storage Layer   |
-|   (Connectors)    |            |   Analysis Core   |            |     (SQLite)      |
-| - GitHubConnector |            | - Contradiction-  |            | - better-sqlite3  |
-| - Document-       |            |   Classifier      |            | - WAL mode        |
-|   Connector (PDF) |            | - AuthorityScorer |            | - Foreign keys    |
-| - Website-        |            | - FreshnessScorer |            | - 6 Migrations    |
-|   Connector       |            | - EvidenceEvaluator|           | - Full Audit Trail|
-| - SSRF Guard      |            | - EntityResolver  |            | - Online Backup   |
-+-------------------+            +-------------------+            +-------------------+
+### Visual Dataflow
+
+```mermaid
+flowchart TD
+    subgraph Clients["MCP Clients & IDEs"]
+        Claude["Claude Desktop"]
+        AGY["Google Antigravity"]
+        Cursor["Cursor IDE"]
+        HTTP["Remote HTTP / SSE"]
+    end
+
+    subgraph Protocol["MCP Protocol Layer"]
+        StdioT["StdioServerTransport"]
+        HttpT["StreamableHttpTransport"]
+        Router["21 Tools | 4 Resources | 2 Prompts"]
+    end
+
+    subgraph Core["Analysis & Intelligence Engine"]
+        Engine["ContradictionEngine"]
+        Classifier["ContradictionClassifier"]
+        Authority["AuthorityScorer"]
+        Freshness["FreshnessScorer"]
+        Advisor["ResolutionAdvisor"]
+    end
+
+    subgraph Connectors["Ingestion Connectors"]
+        GH["GitHub Connector"]
+        DOC["Document Connector (PDF/YAML/JSON/MD)"]
+        WEB["Website Connector (SSRF Guarded)"]
+    end
+
+    subgraph Storage["Storage Layer"]
+        DB[(SQLite WAL Mode)]
+        Audit["Immutable Audit Trail"]
+        Backups["Online Live Backups"]
+    end
+
+    Claude --> StdioT
+    AGY --> StdioT
+    Cursor --> StdioT
+    HTTP --> HttpT
+
+    StdioT --> Router
+    HttpT --> Router
+
+    Router --> Engine
+    Router --> Connectors
+
+    Connectors --> DB
+    Engine --> Classifier
+    Engine --> Authority
+    Engine --> Freshness
+    Engine --> Advisor
+
+    Engine --> DB
+    DB --> Audit
+    DB --> Backups
 ```
 
 ---
 
-## One-Command Quickstart (All IDEs)
+## 🚀 One-Command Quickstart (All IDEs)
 
-You can automatically configure Contradiction MCP into your favorite editor with a single command:
+Automatically configure Contradiction MCP into your favorite editor with a single command:
 
-### Universal CLI Setup (Worldwide)
+### Universal CLI Setup
 
 ```bash
 # Google Antigravity (configured in ~/.gemini/config/mcp_config.json and workspace)
@@ -126,22 +157,23 @@ npx -y contradiction-mcp install all
 ### Local Setup from Cloned Source
 
 ```bash
-git clone https://github.com/contradiction-mcp/contradiction-mcp.git
-cd contradiction-mcp
+git clone https://github.com/Daksh-create349/Contradiction-MCP.git
+cd "Contradiction MCP/contradiction-mcp"
 npm install
 npm run build
 
 # Automatically configure in your current environment:
 npm run install-mcp
+
 # Or target a specific IDE:
 node bin/cli.js install [antigravity|cursor|claude|claude-code|windsurf|all]
 ```
 
 ---
 
-## Manual IDE Client Configuration
+## ⚙️ Manual IDE Client Configuration
 
-If you prefer to configure your MCP client manually, add the following JSON blocks:
+If you prefer manual configuration, add the following configuration block to your client settings:
 
 ### 1. Claude Desktop (`claude_desktop_config.json`)
 
@@ -159,7 +191,7 @@ If you prefer to configure your MCP client manually, add the following JSON bloc
         "NODE_ENV": "production",
         "DATABASE_PATH": "/ABSOLUTE/PATH/TO/contradiction-mcp/data/contradiction.db",
         "MCP_TRANSPORT": "stdio",
-        "LOG_LEVEL": "info"
+        "LOG_LEVEL": "error"
       }
     }
   }
@@ -179,7 +211,9 @@ If you prefer to configure your MCP client manually, add the following JSON bloc
       "args": ["/ABSOLUTE/PATH/TO/contradiction-mcp/dist/index.js"],
       "env": {
         "NODE_ENV": "production",
-        "DATABASE_PATH": "/ABSOLUTE/PATH/TO/contradiction-mcp/data/contradiction.db"
+        "DATABASE_PATH": "/ABSOLUTE/PATH/TO/contradiction-mcp/data/contradiction.db",
+        "MCP_TRANSPORT": "stdio",
+        "LOG_LEVEL": "error"
       }
     }
   }
@@ -201,7 +235,7 @@ If you prefer to configure your MCP client manually, add the following JSON bloc
 
 ### 4. Streamable HTTP Remote Client
 
-To connect multiple agents or team members to a central server:
+Connect distributed agents or team members to a centralized server daemon:
 
 ```json
 {
@@ -218,60 +252,146 @@ To connect multiple agents or team members to a central server:
 
 ---
 
-## Complete Command Reference
+## 🛠️ MCP Interface: 21 Tools, 4 Resources, 2 Prompts
 
-| Command                  | Description                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `npm run build`          | Compiles TypeScript (`tsconfig.build.json`) and copies SQL migrations to `dist/storage/migrations/`. |
-| `npm start`              | Runs the compiled production server (`node dist/index.js`).                                          |
-| `npm run dev`            | Runs the development server via `tsx` with hot TypeScript execution.                                 |
-| `npm test`               | Runs the full Vitest automated test suite (169 tests across 23 files).                               |
-| `npm run test:coverage`  | Generates V8 code coverage report in `coverage/` directory.                                          |
-| `npm run verify`         | Runs 62 automated end-to-end audit verification gates (protocol, security, heuristics, benchmarks).  |
-| `npm run demo`           | Runs the live 17-step demonstration pipeline (multi-source sync -> contradiction -> resolution).     |
-| `npm run smoke`          | Launches compiled server and executes real MCP Stdio smoke tests.                                    |
-| `npm run live-test`      | Runs stdio smoke test followed by the full Streamable HTTP integration test suite.                   |
-| `npm run typecheck`      | Validates static TypeScript typing (`tsc --noEmit`) with 0 errors.                                   |
-| `npm run lint`           | Runs ESLint flat config across all source and test files.                                            |
-| `npm run format:check`   | Verifies that all code adheres to Prettier formatting rules.                                         |
-| `npm run format`         | Auto-formats all project files using Prettier.                                                       |
-| `npm run install-mcp`    | Automatically configures MCP settings across Antigravity, Cursor, and Claude.                        |
-| `npm run migrate`        | Runs all pending SQLite database migrations (`001` through `006`).                                   |
-| `npm run seed`           | Populates the database with realistic multi-source demonstration data.                               |
-| `npm run backup`         | Executes an online live SQLite backup to the `backups/` directory.                                   |
-| `npm run restore <path>` | Restores the database from a specified backup file.                                                  |
-| `npm run health`         | Queries the system health service and outputs JSON status.                                           |
-| `npm run security:check` | Runs `npm audit` to inspect dependency security vulnerabilities.                                     |
+### Active MCP Tools (21)
 
----
+| Tool Name                       | Description                                                       | Key Arguments                              |
+| :------------------------------ | :---------------------------------------------------------------- | :----------------------------------------- |
+| `health_check`                  | Checks server runtime health, database latency, and entity counts | `{}`                                       |
+| `analyze_claim_pair`            | Runs pairwise contradiction analysis between two claim IDs        | `claimIdA`, `claimIdB`                     |
+| `scan_for_contradictions`       | Scans the full knowledge base for conflicting assertions          | `limit`, `minSeverity`                     |
+| `scan_claim_for_contradictions` | Incrementally scans candidate pairs for a specific claim          | `claimId`                                  |
+| `list_contradictions`           | Lists contradictions filtered by status and severity              | `status`, `severity`, `limit`              |
+| `get_contradiction`             | Retrieves detailed contradiction record with claims and sources   | `contradictionId`                          |
+| `explain_claim_relationship`    | Explains contextual factors (env, scope, role, SemVer)            | `claimIdA`, `claimIdB`                     |
+| `advise_resolution`             | Heuristically compares authority, freshness, and evidence         | `contradictionId`                          |
+| `review_contradiction`          | Transitions contradiction to `REVIEWED` status                    | `contradictionId`, `reviewedBy`, `notes`   |
+| `resolve_contradiction`         | Resolves contradiction by selecting canonical claim               | `contradictionId`, `resolvedBy`, `reason`  |
+| `dismiss_contradiction`         | Dismisses false positives or intentional differences              | `contradictionId`, `dismissedBy`, `reason` |
+| `reopen_contradiction`          | Reopens a previously resolved or dismissed contradiction          | `contradictionId`, `reopenedBy`, `reason`  |
+| `get_contradiction_history`     | Returns chronological, immutable audit trail of transitions       | `contradictionId`                          |
+| `get_claim_history`             | Returns value history and supersessions for a specific claim      | `externalId`                               |
+| `list_connectors`               | Lists registered ingestion connectors and capabilities            | `{}`                                       |
+| `test_github_connection`        | Tests GitHub connectivity and rate-limit headroom                 | `owner`, `repo`                            |
+| `sync_github_repository`        | Ingests package.json, Dockerfile, README, and workflows           | `owner`, `repo`, `branch`                  |
+| `sync_document`                 | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files              | `filePath`, `subject`, `sourceRole`        |
+| `sync_website`                  | Ingests web URL with pre-flight SSRF protection                   | `url`, `subject`, `maxDepth`               |
+| `sync_source`                   | Synchronizes an existing registered source by ID                  | `sourceId`                                 |
+| `sync_sources`                  | Bounded-concurrency batch synchronization                         | `sourceIds`                                |
 
-## Environment Variables
+### Active MCP Resources (4)
 
-| Variable               | Default                   | Description                                                             |
-| ---------------------- | ------------------------- | ----------------------------------------------------------------------- |
-| `NODE_ENV`             | `development`             | Runtime mode: `development`, `test`, or `production`.                   |
-| `DATABASE_PATH`        | `./data/contradiction.db` | Filepath to SQLite database file or `:memory:`.                         |
-| `MCP_TRANSPORT`        | `stdio`                   | Transport mode: `stdio` or `http`.                                      |
-| `HTTP_PORT`            | `3000`                    | Port for Streamable HTTP server when `MCP_TRANSPORT=http`.              |
-| `HTTP_HOST`            | `127.0.0.1`               | Binding address for HTTP daemon (protected with DNS rebinding guards).  |
-| `API_KEY`              | _(optional)_              | Secret bearer token required for HTTP authentication.                   |
-| `GITHUB_TOKEN`         | _(optional)_              | Personal Access Token to avoid GitHub API 60 req/hr rate limits.        |
-| `LOG_LEVEL`            | `info`                    | Logging verbosity: `debug`, `info`, `warn`, `error`.                    |
-| `ALLOWED_ROOTS`        | `.`                       | Comma-separated directory paths permitted for local document ingestion. |
-| `MAX_FILE_SIZE_BYTES`  | `10485760` (10MB)         | Max document upload size to protect against memory exhaustion.          |
-| `RATE_LIMIT_MAX`       | `100`                     | Maximum requests permitted within rate limit window.                    |
-| `RATE_LIMIT_WINDOW_MS` | `60000` (1 min)           | Sliding rate limiter window in milliseconds.                            |
+- `health://metrics` — Static snapshot of uptime, tool invocations, and contradiction tallies.
+- `contradiction://{id}` — Dynamic resource returning live contradiction state for a specific ID.
+- `claim://{id}` — Dynamic resource returning factual claim details, context, and provenance.
+- `source://{id}` — Dynamic resource returning source metadata, type, and trust score.
+
+### Active MCP Prompts (2)
+
+- `investigate_contradiction` — Interactive prompt guiding contradiction investigation, context analysis, and resolution.
+- `review_source_consistency` — Agent prompt guiding systematic cross-source consistency audits.
 
 ---
 
-## Step-by-Step Hands-On Testing Tutorial
+## 🔍 Example Tool Payloads & Responses
 
-### Tutorial 1: Detecting Real Document Contradictions in 30 Seconds
+<details>
+<summary><b>1. Ingesting a Document (<code>sync_document</code>)</b></summary>
+
+**Request**:
+
+```json
+{
+  "filePath": "/tmp/deployment_spec.json",
+  "subject": "api-server",
+  "scope": "deployment",
+  "environment": "production",
+  "sourceRole": "deployment"
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "sourceId": "76be8d2f-1e3b-48fd-922f-1b499251ac2b",
+  "claimsCreated": 2,
+  "claimsUpdated": 0
+}
+```
+
+</details>
+
+<details>
+<summary><b>2. Scanning for Contradictions (<code>scan_for_contradictions</code>)</b></summary>
+
+**Request**:
+
+```json
+{}
+```
+
+**Response**:
+
+```json
+{
+  "status": "completed",
+  "claimsScanned": 4,
+  "candidatePairs": 2,
+  "contradictionsFound": 1,
+  "contradictions": [
+    {
+      "contradictionType": "VERSION_MISMATCH",
+      "severity": "HIGH",
+      "confidence": 1.0,
+      "explanation": "Both claims describe the node_version for 'api-server'. However, architecture_guide.md reports '18.0.0' while deployment_spec.json reports '22.0.0'. Classified as VERSION_MISMATCH with HIGH severity.",
+      "priorityScore": 0.93,
+      "contradictionId": "2f1691be-9c1f-4e93-a86a-ef0c0ba54f9d"
+    }
+  ]
+}
+```
+
+</details>
+
+<details>
+<summary><b>3. Resolution Advice (<code>advise_resolution</code>)</b></summary>
+
+**Request**:
+
+```json
+{
+  "contradictionId": "2f1691be-9c1f-4e93-a86a-ef0c0ba54f9d"
+}
+```
+
+**Response**:
+
+```json
+{
+  "recommendedClaimId": "a779fa4b-c680-482c-8f31-daf470aaaab7",
+  "recommendedValue": "22.0.0",
+  "confidenceScore": 0.88,
+  "reasoning": "Claim B represents a higher-confidence candidate for current truth because it carries higher operational authority (0.85 vs 0.65) as deployment configuration and is equally fresh.",
+  "authorityScoreA": 0.65,
+  "authorityScoreB": 0.85
+}
+```
+
+</details>
+
+---
+
+## 🧪 Step-by-Step Hands-On Tutorial
+
+### Tutorial: Detecting Real Document Contradictions in 30 Seconds
 
 ```bash
 cd contradiction-mcp
 
-# 1. Create two documents describing the same API server:
+# 1. Create two contradictory specifications for the same service:
 cat << 'EOF' > /tmp/deployment_spec.json
 {
   "node_version": "22.0.0",
@@ -285,7 +405,7 @@ node_version: 18.0.0
 database: postgres-14
 EOF
 
-# 2. Run test script to sync and scan:
+# 2. Run test script to ingest and scan via Stdio MCP client:
 npx tsx -e '
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Client } from "@modelcontextprotocol/client";
@@ -316,171 +436,60 @@ main();
 '
 ```
 
-### Tutorial 2: Testing Streamable HTTP Daemon with `curl`
+---
+
+## 💻 Complete Command Reference
+
+| Command                  | Description                                                                  |
+| :----------------------- | :--------------------------------------------------------------------------- |
+| `npm run build`          | Compiles TypeScript and packages SQL migration scripts                       |
+| `npm start`              | Launches compiled production server (`node dist/index.js`)                   |
+| `npm run dev`            | Runs development server with on-the-fly TypeScript execution                 |
+| `npm test`               | Runs complete Vitest test suite (**169 tests across 23 files**)              |
+| `npm run test:coverage`  | Generates detailed V8 code coverage report                                   |
+| `npm run verify`         | Runs all 62 end-to-end verification gates (protocol, security, heuristics)   |
+| `npm run demo`           | Executes live 17-step end-to-end demonstration scenario                      |
+| `npm run smoke`          | Launches compiled server and verifies real MCP Stdio connectivity            |
+| `npm run live-test`      | Runs stdio smoke tests followed by Streamable HTTP integration suite         |
+| `npm run typecheck`      | Validates TypeScript static typing (`tsc --noEmit`) with 0 errors            |
+| `npm run lint`           | Lints codebase with ESLint 9 Flat Config (0 errors, 0 warnings)              |
+| `npm run format:check`   | Verifies code formatting against Prettier                                    |
+| `npm run format`         | Auto-formats all code using Prettier                                         |
+| `npm run install-mcp`    | Automatically configures MCP settings across Antigravity, Cursor, and Claude |
+| `npm run migrate`        | Executes pending SQLite database schema migrations                           |
+| `npm run seed`           | Seeds database with realistic demonstration claims and sources               |
+| `npm run backup`         | Creates zero-downtime online SQLite backup in `backups/`                     |
+| `npm run restore <path>` | Restores database from a designated backup archive                           |
+| `npm run health`         | Queries system health status and outputs operational JSON                    |
+| `npm run security:check` | Runs `npm audit` to inspect dependency security vulnerabilities              |
+
+---
+
+## 🌐 Environment Variables
+
+| Variable               | Default                   | Description                                                  |
+| :--------------------- | :------------------------ | :----------------------------------------------------------- |
+| `NODE_ENV`             | `development`             | Runtime mode: `development`, `test`, or `production`         |
+| `DATABASE_PATH`        | `./data/contradiction.db` | Path to SQLite database file or `:memory:`                   |
+| `MCP_TRANSPORT`        | `stdio`                   | Transport mode: `stdio` or `http`                            |
+| `HTTP_PORT`            | `3000`                    | Port for Streamable HTTP server when `MCP_TRANSPORT=http`    |
+| `HTTP_HOST`            | `127.0.0.1`               | Binding address for HTTP daemon (DNS rebinding guarded)      |
+| `API_KEY`              | _(optional)_              | Secret bearer token required for HTTP authentication         |
+| `GITHUB_TOKEN`         | _(optional)_              | Personal Access Token to prevent GitHub API rate limits      |
+| `LOG_LEVEL`            | `error`                   | Logging level: `debug`, `info`, `warn`, `error`              |
+| `ALLOWED_ROOTS`        | `.`                       | Comma-separated directory paths permitted for file ingestion |
+| `MAX_FILE_SIZE_BYTES`  | `10485760` (10MB)         | Maximum file size allowed for document ingestion             |
+| `RATE_LIMIT_MAX`       | `100`                     | Maximum requests permitted per sliding time window           |
+| `RATE_LIMIT_WINDOW_MS` | `60000` (1 min)           | Sliding rate limiter window in milliseconds                  |
+
+---
+
+## 🐳 Docker & Container Deployment
+
+### Run with Docker
 
 ```bash
-# Terminal 1: Start HTTP daemon
-MCP_TRANSPORT=http HTTP_PORT=3000 node dist/index.js
-
-# Terminal 2: Test endpoints
-# Liveness probe:
-curl http://localhost:3000/health
-
-# Readiness probe (verifies database connectivity):
-curl http://localhost:3000/ready
-
-# Live observability metrics:
-curl http://localhost:3000/metrics
-```
-
----
-
-## MCP Interface: 21 Tools, 4 Resources, 2 Prompts
-
-### Active MCP Tools (21)
-
-1. **`health_check`**: Checks server execution state, database connection latency, and table counts.
-2. **`analyze_claim_pair`**: Runs pairwise contradiction analysis between two specific claim IDs.
-3. **`scan_for_contradictions`**: Scans the entire knowledge base for conflicting assertions.
-4. **`scan_claim_for_contradictions`**: Incrementally scans candidate pairs for a newly added claim.
-5. **`list_contradictions`**: Lists detected contradictions filtered by status (`OPEN`, `REVIEWED`, `RESOLVED`, `DISMISSED`) and severity.
-6. **`get_contradiction`**: Retrieves complete contradiction record with both Claim A/B and Source A/B details.
-7. **`explain_claim_relationship`**: Explains contextual factors (environments, scopes, roles, SemVer compatibility).
-8. **`advise_resolution`**: Heuristically compares authority, freshness, and evidence quality to recommend the winning claim.
-9. **`review_contradiction`**: Transitions contradiction to `REVIEWED` status with reviewer identity and notes.
-10. **`resolve_contradiction`**: Resolves contradiction by selecting the canonical claim with justification.
-11. **`dismiss_contradiction`**: Dismisses expected differences (e.g., dev vs prod matrix) with reason.
-12. **`reopen_contradiction`**: Reopens a previously resolved or dismissed contradiction.
-13. **`get_contradiction_history`**: Returns the chronological, immutable audit trail of state transitions.
-14. **`get_claim_history`**: Returns the history of values and supersessions for a specific claim.
-15. **`list_connectors`**: Lists registered ingestion connectors (`github`, `document`, `website`) and capabilities.
-16. **`test_github_connection`**: Tests accessibility and rate-limit headroom for a GitHub repository.
-17. **`sync_github_repository`**: Ingests package.json, Dockerfile, README, and workflows from GitHub.
-18. **`sync_document`**: Ingests local files (.json, .yaml, .md, .csv, .txt, .pdf) with exact line/page citations.
-19. **`sync_website`**: Ingests web URLs with pre-flight SSRF protection.
-20. **`sync_source`**: Generic single-source synchronization trigger.
-21. **`sync_sources`**: Bounded-concurrency batch synchronization.
-
-### Active MCP Resources (4)
-
-- **`health://metrics`**: Static snapshot of server uptime, tool invocations, and contradiction tallies.
-- **`contradiction://{id}`**: Dynamic resource returning live contradiction data for a specific ID.
-- **`claim://{id}`**: Dynamic resource returning factual claim details, context, and provenance.
-- **`source://{id}`**: Dynamic resource returning source metadata, type, and trust score.
-
-### Active MCP Prompts (2)
-
-- **`investigate_contradiction`**: Interactive agent prompt guiding investigation, contextual analysis, and resolution.
-- **`review_source_consistency`**: Agent prompt guiding cross-source consistency audits.
-
----
-
-## Example Tool Payloads & Responses
-
-### 1. Ingesting a Document (`sync_document`)
-
-**Input Arguments**:
-
-```json
-{
-  "filePath": "/tmp/deployment_spec.json",
-  "subject": "api-server",
-  "scope": "deployment",
-  "environment": "production",
-  "sourceRole": "deployment"
-}
-```
-
-**Output**:
-
-```json
-{
-  "success": true,
-  "sourceId": "76be8d2f-1e3b-48fd-922f-1b499251ac2b",
-  "claimsCreated": 2,
-  "claimsUpdated": 0
-}
-```
-
-### 2. Scanning for Contradictions (`scan_for_contradictions`)
-
-**Input Arguments**: `{}`
-**Output**:
-
-```json
-{
-  "status": "completed",
-  "claimsScanned": 4,
-  "candidatePairs": 2,
-  "contradictionsFound": 2,
-  "contradictions": [
-    {
-      "contradictionType": "VERSION_MISMATCH",
-      "severity": "HIGH",
-      "confidence": 1.0,
-      "explanation": "Both claims describe the node_version for 'api-server'. However, architecture_guide.md reports '18.0.0' while deployment_spec.json reports '22.0.0'. Classified as VERSION_MISMATCH with HIGH severity.",
-      "priorityScore": 0.93,
-      "contradictionId": "2f1691be-9c1f-4e93-a86a-ef0c0ba54f9d"
-    }
-  ]
-}
-```
-
-### 3. Asking for Resolution Advice (`advise_resolution`)
-
-**Input Arguments**:
-
-```json
-{
-  "contradictionId": "2f1691be-9c1f-4e93-a86a-ef0c0ba54f9d"
-}
-```
-
-**Output**:
-
-```json
-{
-  "recommendedClaimId": "a779fa4b-c680-482c-8f31-daf470aaaab7",
-  "recommendedValue": "22.0.0",
-  "confidenceScore": 0.88,
-  "reasoning": "Claim B represents a higher-confidence candidate for current truth because it carries higher operational authority (0.85 vs 0.65) as deployment configuration and is equally fresh.",
-  "authorityScoreA": 0.65,
-  "authorityScoreB": 0.85
-}
-```
-
----
-
-## Production Operations & Runbook
-
-### Online Live Backup & Restore
-
-Contradiction MCP supports zero-downtime SQLite online backups:
-
-```bash
-# Create live backup:
-npm run backup
-# Output: Backup created: ./backups/contradiction-backup-2026-09-12T04-35-42Z.db
-
-# Restore from backup:
-npm run restore ./backups/contradiction-backup-2026-09-12T04-35-42Z.db
-```
-
-### Operational Health & Readiness Probes
-
-When deployed behind a load balancer (Kubernetes, AWS ECS, Cloud Run):
-
-- **Liveness probe**: `GET /health` (returns 200 if Node.js process is active)
-- **Readiness probe**: `GET /ready` (returns 200 if SQLite database connection is live and migrations are applied; returns 503 if database is unreachable)
-
----
-
-## Docker & Docker Compose
-
-### Run via Docker
-
-```bash
-# Build production image (multi-stage, non-root user):
+# Build production container (multi-stage, non-root user):
 docker build -t contradiction-mcp:latest .
 
 # Run container with persistent data volume:
@@ -493,7 +502,7 @@ docker run -d \
   contradiction-mcp:latest
 ```
 
-### Run via Docker Compose
+### Run with Docker Compose
 
 ```bash
 docker compose up -d
@@ -503,47 +512,25 @@ docker compose logs -f
 
 ---
 
-## Automated Tests & Quality Gates
+## 📚 Documentation Index
 
-Contradiction MCP enforces strict production quality gates:
+- 📖 [Architecture Guide](docs/architecture.md) — Layered design, protocol topology, and component contracts.
+- 🔒 [Security Model](docs/security.md) — Multi-layer SSRF defenses, directory containment, and scope authorizations.
+- 🔌 [Connectors Reference](docs/connectors.md) — GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
+- 💾 [Database & Migrations](docs/database.md) — Schema definitions, audit tables, and WAL configuration.
+- 📋 [Operations & Runbook](docs/operations.md) — Online backups, rate limiting, scheduling, and graceful shutdown.
+- 🧪 [Testing Strategy](docs/testing.md) — Zero-mock philosophy, test suite itemization, and benchmarks.
+- 💡 [Practical Examples](docs/examples.md) — Detailed walkthroughs of real-world contradiction scenarios.
 
-```bash
-# 1. Typecheck: 0 TypeScript errors
-npm run typecheck
+---
 
-# 2. Lint: ESLint flat config with 0 errors
-npm run lint
+## ⚖️ License
 
-# 3. Format Check: 100% Prettier compliant
-npm run format:check
+This project is licensed under the **[MIT License](../LICENSE)**.
 
-# 4. Automated Tests: 169 tests across 23 suites passing
-npm test
-
-# 5. Coverage: V8 test coverage
-npm run test:coverage
-
-# 6. Comprehensive Verification: 62 automated protocol & security gates
-npm run verify
-
-# 7. Live Demonstration: 17-step live pipeline
-npm run demo
+```text
+MIT License
+Copyright (c) 2026 Daksh Srivastava and Contradiction MCP Contributors
 ```
 
----
-
-## Documentation Index
-
-- [Architecture Guide](docs/architecture.md): Layered design, protocol topology, and component contracts.
-- [Security Model](docs/security.md): SSRF defenses, directory containment, path traversal prevention, and auth scopes.
-- [Connectors Reference](docs/connectors.md): GitHub, Document (PDF/JSON/YAML/CSV/TXT), and Website connectors.
-- [Database & Migrations](docs/database.md): Schema definitions, audit tables, and WAL configuration.
-- [Operations & Runbook](docs/operations.md): Backups, rate limiting, scheduling, and graceful shutdown.
-- [Testing Strategy](docs/testing.md): Zero-mock philosophy, test suite itemization, and benchmarks.
-- [Practical Examples](docs/examples.md): Detailed workflows for real-world contradiction scenarios.
-
----
-
-## License
-
-MIT © Contradiction MCP Contributors
+Free and open-source software — you are free to use, modify, distribute, sublicense, and deploy Contradiction MCP in personal and commercial environments.

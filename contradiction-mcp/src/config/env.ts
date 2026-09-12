@@ -2,7 +2,8 @@ import dotenv from 'dotenv';
 import { z } from 'zod';
 import { ConfigurationError } from '../domain/types/common.js';
 
-dotenv.config();
+process.env.DOTENV_CONFIG_QUIET = 'true';
+dotenv.config({ quiet: true });
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

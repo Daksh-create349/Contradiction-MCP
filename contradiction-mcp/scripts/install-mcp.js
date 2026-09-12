@@ -22,7 +22,7 @@ const serverConfig = {
     NODE_ENV: 'production',
     DATABASE_PATH: dbPath,
     MCP_TRANSPORT: 'stdio',
-    LOG_LEVEL: 'info',
+    LOG_LEVEL: 'error',
   },
 };
 

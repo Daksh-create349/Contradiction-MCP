@@ -71,6 +71,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
     toolName: string,
     description: string,
     schema: Record<string, z.ZodTypeAny>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     handler: (args: any) => Promise<any>,
   ) => {
     if (!schema || Object.keys(schema).length === 0) {
@@ -79,6 +80,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
       server.registerTool(toolName, { description, inputSchema: schema }, handler);
     }
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (server as any).tool = registerTool;
 
   // 1. Tool: health_check

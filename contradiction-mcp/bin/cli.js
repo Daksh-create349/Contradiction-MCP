@@ -69,7 +69,7 @@ Examples:
           NODE_ENV: 'production',
           DATABASE_PATH: path.join(projectRoot, 'data', 'contradiction.db'),
           MCP_TRANSPORT: 'stdio',
-          LOG_LEVEL: 'info',
+          LOG_LEVEL: 'error',
         },
       };
 
