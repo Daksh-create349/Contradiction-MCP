@@ -49,24 +49,20 @@
     "semver": "^7.8.5",
     "zod": "^4.6.2"
   },
-  "optionalDependencies": {
-    "@rolldown/binding-darwin-arm64": "^1.2.8",
-    "@rolldown/binding-linux-x64-gnu": "^1.2.8"
-  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/semver": "^7.8.0",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "3.2.7",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "prettier": "^3.9.6",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "vitest": "3.2.7"
   },
   "files": [
     "dist",

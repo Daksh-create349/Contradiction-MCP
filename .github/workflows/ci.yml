@@ -27,9 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: contradiction-mcp
-        run: |
-          npm install
-          npm install --no-save @rolldown/binding-linux-x64-gnu
+        run: npm install
 
       - name: Typecheck TypeScript
         working-directory: contradiction-mcp

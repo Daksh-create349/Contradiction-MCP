@@ -1,9 +1,6 @@
 {
   "name": "contradiction-mcp-workspace",
   "private": true,
-  "workspaces": [
-    "contradiction-mcp"
-  ],
   "scripts": {
     "build": "cd contradiction-mcp && npm install && npm run build",
     "start": "node contradiction-mcp/dist/index.js",
