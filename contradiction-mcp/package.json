@@ -49,6 +49,10 @@
     "semver": "^7.8.5",
     "zod": "^4.6.2"
   },
+  "optionalDependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.2.8",
+    "@rolldown/binding-linux-x64-gnu": "^1.2.8"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",
