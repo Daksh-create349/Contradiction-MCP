@@ -12,8 +12,8 @@
 [![Vitest Tests](https://img.shields.io/badge/Tests-170%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
-[![Glama Score](https://img.shields.io/badge/Glama%20Score-100%25-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP/admin/score)
-[![View on Glama](https://glama.ai/mcp/servers/badge/Daksh-create349/Contradiction-MCP)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
+[![Glama Score](https://img.shields.io/badge/Glama%20Score-100%2F100-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
+[![Glama](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP/badges/score.svg)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
 
 <p align="center">
   <a href="#the-problem-it-solves">Problem</a> •
