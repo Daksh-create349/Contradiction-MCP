@@ -13,7 +13,12 @@
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 [![Glama Score](https://img.shields.io/badge/Glama%20Score-100%2F100-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
-[![Glama](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP/badges/score.svg)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
+
+<br/>
+
+<a href="https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP">
+  <img src="https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP/badges/card.svg" alt="Contradiction MCP on Glama" width="380" height="200" />
+</a>
 
 <p align="center">
   <a href="#the-problem-it-solves">Problem</a> •
