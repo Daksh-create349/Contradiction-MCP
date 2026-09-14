@@ -31,7 +31,7 @@
 
 > [!NOTE]
 >
-> ### Project Status: Active Development (v0.2.0)
+> ### Project Status: Active Development (v0.2.1)
 >
 > **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
 
@@ -285,33 +285,34 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ---
 
-## MCP Interface: 21 Tools, 4 Resources, 2 Prompts
+## MCP Interface: 22 Tools, 4 Resources, 2 Prompts
 
-### Active MCP Tools (21)
+### Active MCP Tools (22)
 
-| Tool Name                       | Description                                                       | Key Arguments                              |
-| :------------------------------ | :---------------------------------------------------------------- | :----------------------------------------- |
-| `health_check`                  | Checks server runtime health, database latency, and entity counts | `{}`                                       |
-| `analyze_claim_pair`            | Runs pairwise contradiction analysis between two claim IDs        | `claimIdA`, `claimIdB`                     |
-| `scan_for_contradictions`       | Scans the full knowledge base for conflicting assertions          | `limit`, `minSeverity`                     |
-| `scan_claim_for_contradictions` | Incrementally scans candidate pairs for a specific claim          | `claimId`                                  |
-| `list_contradictions`           | Lists contradictions filtered by status and severity              | `status`, `severity`, `limit`              |
-| `get_contradiction`             | Retrieves detailed contradiction record with claims and sources   | `contradictionId`                          |
-| `explain_claim_relationship`    | Explains contextual factors (env, scope, role, SemVer)            | `claimIdA`, `claimIdB`                     |
-| `advise_resolution`             | Heuristically compares authority, freshness, and evidence         | `contradictionId`                          |
-| `review_contradiction`          | Transitions contradiction to `REVIEWED` status                    | `contradictionId`, `reviewedBy`, `notes`   |
-| `resolve_contradiction`         | Resolves contradiction by selecting canonical claim               | `contradictionId`, `resolvedBy`, `reason`  |
-| `dismiss_contradiction`         | Dismisses false positives or intentional differences              | `contradictionId`, `dismissedBy`, `reason` |
-| `reopen_contradiction`          | Reopens a previously resolved or dismissed contradiction          | `contradictionId`, `reopenedBy`, `reason`  |
-| `get_contradiction_history`     | Returns chronological, immutable audit trail of transitions       | `contradictionId`                          |
-| `get_claim_history`             | Returns value history and supersessions for a specific claim      | `externalId`                               |
-| `list_connectors`               | Lists registered ingestion connectors and capabilities            | `{}`                                       |
-| `test_github_connection`        | Tests GitHub connectivity and rate-limit headroom                 | `owner`, `repo`                            |
-| `sync_github_repository`        | Ingests package.json, Dockerfile, README, and workflows           | `owner`, `repo`, `branch`                  |
-| `sync_document`                 | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files              | `filePath`, `subject`, `sourceRole`        |
-| `sync_website`                  | Ingests web URL with pre-flight SSRF protection                   | `url`, `subject`, `maxDepth`               |
-| `sync_source`                   | Synchronizes an existing registered source by ID                  | `sourceId`                                 |
-| `sync_sources`                  | Bounded-concurrency batch synchronization                         | `sourceIds`                                |
+| Tool Name                        | Description                                                       | Key Arguments                                |
+| :------------------------------- | :---------------------------------------------------------------- | :------------------------------------------- |
+| `health_check`                   | Checks server runtime health, database latency, and entity counts | `{}`                                         |
+| `analyze_claim_pair`             | Runs pairwise contradiction analysis between two claim IDs        | `claimIdA`, `claimIdB`                       |
+| `scan_for_contradictions`        | Scans the full knowledge base for conflicting assertions          | `limit`, `minConfidence`, `includeDismissed` |
+| `scan_source_for_contradictions` | Scans assertions originating from a specific source ID            | `sourceId`, `limit`, `minConfidence`         |
+| `scan_claim_for_contradictions`  | Incrementally scans candidate pairs for a specific claim          | `claimId`                                    |
+| `list_contradictions`            | Lists contradictions filtered by status and severity              | `status`, `severity`, `limit`                |
+| `get_contradiction`              | Retrieves detailed contradiction record with claims and sources   | `contradictionId`                            |
+| `explain_claim_relationship`     | Explains contextual factors (env, scope, role, SemVer)            | `claimIdA`, `claimIdB`                       |
+| `advise_resolution`              | Heuristically compares authority, freshness, and evidence         | `contradictionId`                            |
+| `review_contradiction`           | Transitions contradiction to `REVIEWED` status                    | `contradictionId`, `reviewedBy`, `notes`     |
+| `resolve_contradiction`          | Resolves contradiction by selecting canonical claim               | `contradictionId`, `resolvedBy`, `reason`    |
+| `dismiss_contradiction`          | Dismisses false positives or intentional differences              | `contradictionId`, `dismissedBy`, `reason`   |
+| `reopen_contradiction`           | Reopens a previously resolved or dismissed contradiction          | `contradictionId`, `reopenedBy`, `reason`    |
+| `get_contradiction_history`      | Returns chronological, immutable audit trail of transitions       | `contradictionId`                            |
+| `get_claim_history`              | Returns value history and supersessions for a specific claim      | `externalId`                                 |
+| `list_connectors`                | Lists registered ingestion connectors and capabilities            | `{}`                                         |
+| `test_github_connection`         | Tests GitHub connectivity and rate-limit headroom                 | `owner`, `repo`                              |
+| `sync_github_repository`         | Ingests package.json, Dockerfile, README, and workflows           | `owner`, `repo`, `branch`                    |
+| `sync_document`                  | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files              | `filePath`, `subject`, `sourceRole`          |
+| `sync_website`                   | Ingests web URL with pre-flight SSRF protection                   | `url`, `subject`, `maxDepth`                 |
+| `sync_source`                    | Synchronizes an existing registered source by ID                  | `sourceId`                                   |
+| `sync_sources`                   | Bounded-concurrency batch synchronization                         | `sourceIds`                                  |
 
 ### Active MCP Resources (4)
 
@@ -542,6 +543,23 @@ docker compose up -d
 docker compose ps
 docker compose logs -f
 ```
+
+---
+
+## Release History
+
+### v0.2.1 (2026-09-14)
+
+- **22 Active MCP Tools**: Full interface alignment including `scan_source_for_contradictions` for targeted source discovery.
+- **Section Heading Namespacing in Markdown**: Hierarchical markdown headings (`##` to `######`) namespace nested properties (e.g. `### API Gateway` $\rightarrow$ `api_gateway_port`), preventing intra-document collisions while matching nested JSON configurations.
+- **Precision Predicate Similarity Guard**: Enhanced `claimMatcher` requiring $\ge 50\%$ token overlap on multi-token phrases, eliminating false matches between distinct properties sharing generic suffixes (`node_version` vs `cache_version`, `runtime_node_version` vs `runtime_python_version`).
+- **Scoped JSON Extraction**: Streamlined `flattenJsonObject` to emit unique composite paths, avoiding leaf key duplication explosions.
+- **Numeric Claim Validation**: Excluded valid single-digit numbers (`4`, `3`) from short-value extraction warnings.
+- **Multi-Format Ingestion**: End-to-end verified across Markdown, JSON, OpenXML `.docx`, and Kubernetes manifests.
+
+### v0.2.0 (2026-09-13)
+
+- Initial public release with 21 core MCP tools, SQLite WAL persistence, GitHub, Document, and Website ingestion connectors.
 
 ---
 

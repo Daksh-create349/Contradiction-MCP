@@ -453,17 +453,37 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
   private flattenJsonObject(
     obj: Record<string, unknown>,
     prefix = '',
+    depth = 0,
   ): Array<[string, string | number | boolean]> {
     const entries: Array<[string, string | number | boolean]> = [];
     for (const [k, v] of Object.entries(obj)) {
       const compositeKey = prefix ? `${prefix}_${k}` : k;
       if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        // Always emit the full composite key (namespaced path) for uniqueness.
+        // Only emit a bare leaf alias at depth 0 (top-level keys are unambiguous).
+        // For nested keys (depth > 0), the bare leaf is ambiguous across sections
+        // (e.g. api_gateway.port vs cache.port) and causes false-positive pairs.
         entries.push([compositeKey, v]);
-        if (prefix && !entries.some(([exK]) => exK === k)) {
-          entries.push([k, v]);
-        }
       } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-        entries.push(...this.flattenJsonObject(v as Record<string, unknown>, compositeKey));
+        entries.push(
+          ...this.flattenJsonObject(v as Record<string, unknown>, compositeKey, depth + 1),
+        );
+      } else if (Array.isArray(v)) {
+        // For env-style arrays [{name, value}], extract name=value pairs
+        for (const item of v) {
+          if (
+            typeof item === 'object' &&
+            item !== null &&
+            'name' in item &&
+            'value' in item &&
+            typeof (item as Record<string, unknown>).name === 'string'
+          ) {
+            const envItem = item as { name: string; value: unknown };
+            const leafKey = envItem.name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            const leafVal = String(envItem.value);
+            entries.push([leafKey, leafVal]);
+          }
+        }
       }
     }
     return entries;
@@ -592,9 +612,30 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     // Markdown table row pattern
     const tablePattern = /^\s*\|\s*([^|:\r\n]{2,50}?)\s*\|\s*([^|\r\n]{1,160}?)\s*\|/;
 
+    let currentSection: string | null = null;
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line || !line.trim()) continue;
+
+      const headingMatch = line.match(/^(#{2,6})\s+(.+)$/);
+      if (headingMatch) {
+        const rawHeading = headingMatch[2].trim();
+        const genericSections =
+          /^(overview|introduction|getting started|summary|table of contents|notes|appendix|prerequisites|requirements|technology stack|service configuration|monitoring|security|hardware requirements)/i;
+        if (!genericSections.test(rawHeading)) {
+          let s = rawHeading
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+          s = s.replace(/_(cluster|layer|service|server|component|section)$/, '');
+          currentSection = s;
+        } else {
+          currentSection = null;
+        }
+        continue;
+      }
 
       let key: string | null = null;
       let val: string | null = null;
@@ -703,12 +744,16 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       }
 
       if (key && val && key.length > 2 && val.length > 0 && !val.startsWith('http')) {
-        const externalId = createClaimExternalId('document', filePath, key, String(i + 1));
-        const valueType = inferClaimValueType(key, val);
+        let finalKey = key;
+        if (currentSection && !key.startsWith(currentSection)) {
+          finalKey = `${currentSection}_${key}`;
+        }
+        const externalId = createClaimExternalId('document', filePath, finalKey, String(i + 1));
+        const valueType = inferClaimValueType(finalKey, val);
 
         claims.push({
           subject: subjectBase,
-          predicate: key,
+          predicate: finalKey,
           value: val,
           valueType,
           environment: env,

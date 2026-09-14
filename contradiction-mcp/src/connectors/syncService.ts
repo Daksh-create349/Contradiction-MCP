@@ -75,7 +75,11 @@ export class SyncService {
       );
     } else {
       for (const claim of extractedClaims) {
-        if (claim.value.length < 2 && !['0', '1', 'y', 'n'].includes(claim.value.toLowerCase())) {
+        if (
+          claim.value.length < 2 &&
+          !['0', '1', 'y', 'n'].includes(claim.value.toLowerCase()) &&
+          !/^\d$/.test(claim.value) // Single-digit numbers (e.g. cpu=4, replicas=3) are valid
+        ) {
           extractionWarnings.push(
             `Claim '${claim.predicate}' extracted with suspiciously short value: '${claim.value}'`,
           );

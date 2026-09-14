@@ -108,7 +108,15 @@ export function calculateCompositeSimilarity(strA: string, strB: string): number
     return Math.max(tokenSim, editSim, inclusionScore * 0.9);
   }
 
-  return Math.max(tokenSim, editSim);
+  // For multi-token phrases, edit distance can be misleading if tokens differ:
+  // e.g. 'node version' vs 'cache version' has editSim 0.69 even though 'node' != 'cache'.
+  // Only use editSim if token overlap is already substantial (>= 0.5).
+  if (tokenSim >= 0.5) {
+    const editSim = calculateLevenshteinSimilarity(normA, normB);
+    return Math.max(tokenSim, editSim);
+  }
+
+  return tokenSim;
 }
 
 const PREDICATE_SYNONYM_GROUPS: Array<Set<string>> = [
@@ -124,18 +132,34 @@ const PREDICATE_SYNONYM_GROUPS: Array<Set<string>> = [
     'timeout_ms',
   ]),
   new Set(['db_engine', 'database_type', 'database_engine', 'db_type', 'database', 'db_backend']),
-  new Set(['node_version', 'node', 'nodejs_version', 'node_ver']),
-  new Set(['python_version', 'python', 'python_ver']),
+  new Set(['db_version', 'database_version', 'database_db_version', 'db_ver']),
+  new Set(['node_version', 'node', 'nodejs_version', 'node_ver', 'runtime_node_version']),
+  new Set(['python_version', 'python', 'python_ver', 'runtime_python_version']),
   new Set(['memory', 'ram', 'min_ram', 'minimum_ram', 'min_memory', 'memory_limit']),
   new Set(['cpu', 'cores', 'min_cpu', 'cpu_cores']),
 ];
+
+export function stripWrapperPrefix(pred: string): string {
+  const norm = pred.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return norm.replace(
+    /^(runtime|spec|config|configuration|settings|env|metadata|properties|parameters)_+/,
+    '',
+  );
+}
 
 export function arePredicateSynonyms(predA: string, predB: string): boolean {
   const a = predA.toLowerCase().replace(/[^a-z0-9_]/g, '_');
   const b = predB.toLowerCase().replace(/[^a-z0-9_]/g, '_');
   if (a === b) return true;
+
+  const strippedA = stripWrapperPrefix(a);
+  const strippedB = stripWrapperPrefix(b);
+  if (strippedA === strippedB && strippedA.length > 0) return true;
+
   for (const group of PREDICATE_SYNONYM_GROUPS) {
-    if (group.has(a) && group.has(b)) return true;
+    const hasA = group.has(a) || group.has(strippedA);
+    const hasB = group.has(b) || group.has(strippedB);
+    if (hasA && hasB) return true;
   }
   return false;
 }
@@ -266,17 +290,25 @@ export class ClaimMatcher {
       subjectSimilarity = Math.max(subjectSimilarity, entityMatch.confidence);
     }
 
-    const leafA = normPredA.split('_').pop() || normPredA;
-    const leafB = normPredB.split('_').pop() || normPredB;
-    const isSynonym =
-      arePredicateSynonyms(claimA.predicate, claimB.predicate) ||
-      arePredicateSynonyms(leafA, leafB);
+    const tokensA = normPredA.split(' ').filter(Boolean);
+    const tokensB = normPredB.split(' ').filter(Boolean);
+    const leafA = tokensA[tokensA.length - 1] || normPredA;
+    const leafB = tokensB[tokensB.length - 1] || normPredB;
+
+    const isSynonym = arePredicateSynonyms(claimA.predicate, claimB.predicate);
 
     let predicateSimilarity = calculateCompositeSimilarity(claimA.predicate, claimB.predicate);
 
-    // Guard against accidental prefix matching (e.g. deployment_server_database vs deployment_server_port)
-    if (!isSynonym && leafA !== leafB && (normPredA.includes('_') || normPredB.includes('_'))) {
-      predicateSimilarity = 0;
+    // Guard against cross-subsystem false matches where two predicates share only
+    // a generic leaf (e.g. 'port', 'version') but have different subsystem prefixes
+    // (e.g. 'api_gateway_port' vs 'cache_port', 'node_version' vs 'cache_version').
+    if (!isSynonym) {
+      const prefixA = tokensA.slice(0, -1).join(' ');
+      const prefixB = tokensB.slice(0, -1).join(' ');
+
+      if (prefixA && prefixB && prefixA !== prefixB && leafA === leafB) {
+        predicateSimilarity = 0;
+      }
     }
 
     let matchDetail = '';

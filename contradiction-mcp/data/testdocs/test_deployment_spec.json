@@ -1,0 +1,37 @@
+{
+  "service": "alpha-commerce-platform",
+  "environment": "production",
+  "version": "3.1.0",
+  "runtime": {
+    "node_version": "18.19.0",
+    "python_version": "3.10.12"
+  },
+  "database": {
+    "db_engine": "postgresql",
+    "db_version": "14.9",
+    "max_connections": 300,
+    "connection_pool": 50
+  },
+  "cache": {
+    "cache_engine": "redis",
+    "cache_version": "6.2.14",
+    "max_memory": "4GB",
+    "port": 6380
+  },
+  "api_gateway": {
+    "port": 443,
+    "max_connections": 5000,
+    "timeout": "60s",
+    "tls_enabled": false
+  },
+  "hardware": {
+    "ram": "8GB",
+    "cpu": 4,
+    "storage": "250GB"
+  },
+  "security": {
+    "jwt_ttl": 7200,
+    "rate_limit": 500,
+    "tls_version": "1.2"
+  }
+}

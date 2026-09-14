@@ -1,0 +1,48 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "alpha-commerce-api",
+    "environment": "production"
+  },
+  "spec": {
+    "replicas": 3,
+    "template": {
+      "spec": {
+        "containers": [
+          {
+            "name": "api-server",
+            "node_version": "22.4.0",
+            "port": 8080,
+            "resources": {
+              "requests": {
+                "memory": "4GB",
+                "cpu": "2"
+              },
+              "limits": {
+                "memory": "8GB",
+                "cpu": "4"
+              }
+            },
+            "env": [
+              {"name": "DB_HOST", "value": "postgres-15"},
+              {"name": "REDIS_VERSION", "value": "7.0.0"},
+              {"name": "MAX_CONNECTIONS", "value": "1000"},
+              {"name": "JWT_EXPIRY", "value": "1800"},
+              {"name": "TLS_ENABLED", "value": "true"}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "database": {
+    "db_engine": "mysql",
+    "db_version": "8.0",
+    "max_connections": 200
+  },
+  "cache": {
+    "cache_engine": "memcached",
+    "port": 11211
+  }
+}
