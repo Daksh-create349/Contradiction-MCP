@@ -72,22 +72,19 @@ describe('MCP Client Harness: Tools, Resources, & Prompts Verification', () => {
     const toolsResult = await client.listTools();
     const toolNames = toolsResult.tools.map((t) => t.name);
 
-    expect(toolNames).toContain('health_check');
+    expect(toolsResult.tools).toHaveLength(12);
+    expect(toolNames).toContain('check_health');
+    expect(toolNames).toContain('list_sources');
+    expect(toolNames).toContain('test_connection');
+    expect(toolNames).toContain('sync_source');
+    expect(toolNames).toContain('scan_contradictions');
     expect(toolNames).toContain('analyze_claim_pair');
-    expect(toolNames).toContain('scan_for_contradictions');
+    expect(toolNames).toContain('list_claims');
+    expect(toolNames).toContain('get_claim');
     expect(toolNames).toContain('list_contradictions');
     expect(toolNames).toContain('get_contradiction');
-    expect(toolNames).toContain('review_contradiction');
-    expect(toolNames).toContain('resolve_contradiction');
-    expect(toolNames).toContain('dismiss_contradiction');
-    expect(toolNames).toContain('reopen_contradiction');
-    expect(toolNames).toContain('get_contradiction_history');
-    expect(toolNames).toContain('get_claim_history');
     expect(toolNames).toContain('advise_resolution');
-    expect(toolNames).toContain('sync_source');
-    expect(toolNames).toContain('sync_sources');
-    expect(toolNames).toContain('sync_document');
-    expect(toolNames).toContain('sync_website');
+    expect(toolNames).toContain('resolve_contradiction');
 
     // 2. Resource listing
     const resourcesResult = await client.listResources();

@@ -763,7 +763,15 @@ export class DatabaseManager {
     return { claim: created, isNew: true, updated: false };
   }
 
-  public listClaims(options?: { sourceId?: string; subject?: string; limit?: number }): Claim[] {
+  public listClaims(options?: {
+    sourceId?: string;
+    subject?: string;
+    predicate?: string;
+    environment?: string;
+    valueType?: string;
+    limit?: number;
+    offset?: number;
+  }): Claim[] {
     const rawDb = this.getRawDb();
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -776,6 +784,18 @@ export class DatabaseManager {
       conditions.push('subject = ?');
       params.push(options.subject);
     }
+    if (options?.predicate) {
+      conditions.push('predicate = ?');
+      params.push(options.predicate);
+    }
+    if (options?.environment) {
+      conditions.push('environment = ?');
+      params.push(options.environment);
+    }
+    if (options?.valueType) {
+      conditions.push('value_type = ?');
+      params.push(options.valueType);
+    }
 
     let query = 'SELECT * FROM claims';
     if (conditions.length > 0) {
@@ -786,6 +806,13 @@ export class DatabaseManager {
     if (options?.limit && options.limit > 0) {
       query += ' LIMIT ?';
       params.push(options.limit);
+      if (options?.offset && options.offset > 0) {
+        query += ' OFFSET ?';
+        params.push(options.offset);
+      }
+    } else if (options?.offset && options.offset > 0) {
+      query += ' LIMIT -1 OFFSET ?';
+      params.push(options.offset);
     }
 
     const rows = rawDb.prepare(query).all(...params) as Record<string, unknown>[];

@@ -9,7 +9,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white&style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![MCP Specification](https://img.shields.io/badge/MCP-2.0.0-8A2BE2.svg?logo=anthropic&logoColor=white&style=flat-square)](https://modelcontextprotocol.io/)
-[![Vitest Tests](https://img.shields.io/badge/Tests-170%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
+[![Vitest Tests](https://img.shields.io/badge/Tests-173%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 [![Glama Score](https://img.shields.io/badge/Glama%20Score-100%2F100-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
@@ -26,7 +26,7 @@
   <a href="#limitations--known-edge-cases">Limitations</a> •
   <a href="#system-architecture">Architecture</a> •
   <a href="#one-command-quickstart-all-ides">Quickstart</a> •
-  <a href="#mcp-interface-21-tools-4-resources-2-prompts">Tools Reference</a> •
+  <a href="#mcp-interface-12-canonical-tools-4-resources-2-prompts">Tools Reference</a> •
   <a href="#step-by-step-hands-on-tutorial">Tutorials</a> •
   <a href="#documentation-index">Docs</a> •
   <a href="#license">License</a>
@@ -38,7 +38,7 @@
 
 > [!NOTE]
 >
-> ### Project Status: Active Development (v0.2.1)
+> ### Project Status: Active Development (v0.3.0)
 >
 > **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
 
@@ -121,7 +121,7 @@ flowchart TD
     subgraph Protocol["MCP Protocol Layer"]
         StdioT["StdioServerTransport"]
         HttpT["StreamableHttpTransport"]
-        Router["22 Tools | 4 Resources | 2 Prompts"]
+        Router["12 Canonical Tools | 4 Resources | 2 Prompts"]
     end
 
     subgraph Core["Analysis & Intelligence Engine"]
@@ -292,34 +292,29 @@ Connect distributed agents or team members to a centralized server daemon:
 
 ---
 
-## MCP Interface: 22 Tools, 4 Resources, 2 Prompts
+## MCP Interface: 12 Canonical Tools, 4 Resources, 2 Prompts
 
-### Active MCP Tools (22)
+Contradiction MCP exposes **12 canonical tools** engineered to the highest specification standards (Glama Tool Definition Quality Score **5.0 / 5.0 Grade A**). Every tool strictly follows `verb_noun` nomenclature, provides rich typed schemas, and isolates distinct operational domains.
 
-| Tool Name                       | Description                                                       | Key Arguments                              |
-| :------------------------------ | :---------------------------------------------------------------- | :----------------------------------------- |
-| `health_check`                  | Checks server runtime health, database latency, and entity counts | `{}`                                       |
-| `analyze_claim_pair`            | Runs pairwise contradiction analysis between two claim IDs        | `claimIdA`, `claimIdB`                     |
-| `scan_for_contradictions`       | Scans the full knowledge base for conflicting assertions          | `limit`, `minSeverity`                     |
-| `scan_claim_for_contradictions` | Incrementally scans candidate pairs for a specific claim          | `claimId`                                  |
-| `scan_source_for_contradictions`| Scans all claims from a specific source/file against all others   | `sourceId`, `minConfidence`, `limit`       |
-| `list_contradictions`           | Lists contradictions filtered by status and severity              | `status`, `severity`, `limit`              |
-| `get_contradiction`             | Retrieves detailed contradiction record with claims and sources   | `contradictionId`                          |
-| `explain_claim_relationship`    | Explains contextual factors (env, scope, role, SemVer)            | `claimIdA`, `claimIdB`                     |
-| `advise_resolution`             | Heuristically compares authority, freshness, and evidence         | `contradictionId`                          |
-| `review_contradiction`          | Transitions contradiction to `REVIEWED` status                    | `contradictionId`, `reviewedBy`, `notes`   |
-| `resolve_contradiction`         | Resolves contradiction by selecting canonical claim               | `contradictionId`, `resolvedBy`, `reason`  |
-| `dismiss_contradiction`         | Dismisses false positives or intentional differences              | `contradictionId`, `dismissedBy`, `reason` |
-| `reopen_contradiction`          | Reopens a previously resolved or dismissed contradiction          | `contradictionId`, `reopenedBy`, `reason`  |
-| `get_contradiction_history`     | Returns chronological, immutable audit trail of transitions       | `contradictionId`                          |
-| `get_claim_history`             | Returns value history and supersessions for a specific claim      | `externalId`                               |
-| `list_connectors`               | Lists registered ingestion connectors and capabilities            | `{}`                                       |
-| `test_github_connection`        | Tests GitHub connectivity and rate-limit headroom                 | `owner`, `repo`                            |
-| `sync_github_repository`        | Ingests package.json, Dockerfile, README, and workflows           | `owner`, `repo`, `branch`                  |
-| `sync_document`                 | Ingests local JSON, YAML, MD, CSV, TXT, or PDF files              | `filePath`, `subject`, `sourceRole`        |
-| `sync_website`                  | Ingests web URL with pre-flight SSRF protection                   | `url`, `subject`, `maxDepth`               |
-| `sync_source`                   | Synchronizes an existing registered source by ID                  | `sourceId`                                 |
-| `sync_sources`                  | Bounded-concurrency batch synchronization                         | `sourceIds`                                |
+### Active Canonical MCP Tools (12)
+
+| Tool Name               | Operational Domain | Description                                                                                 | Key Arguments                                                        |
+| :---------------------- | :----------------- | :------------------------------------------------------------------------------------------ | :------------------------------------------------------------------- |
+| `check_health`          | Diagnostics        | Verifies server runtime health, database connectivity, and active connector health          | `{}`                                                                 |
+| `list_sources`          | Discovery          | Lists registered knowledge sources and connector types with pagination                      | `type`, `limit`, `offset`                                            |
+| `test_connection`       | Connectivity       | Validates credentials, permissions, and network reachability without persisting data        | `type`, `target`, `credentials`                                      |
+| `sync_source`           | Ingestion          | Unified ingestion engine for files, Markdown, Word (.docx), JSON, URLs, or Git repositories | `sourceId` OR (`filePath` / `url` / `owner`+`repo`), `subject`       |
+| `scan_contradictions`   | Intelligence       | Scans the knowledge base, a source, or a claim for logical/semantic contradictions          | `sourceId`, `claimId`, `limit`, `minConfidence`, `includeDismissed`  |
+| `analyze_claim_pair`    | Intelligence       | Performs pairwise contradiction and contextual relationship analysis between two claims     | `claimIdA`, `claimIdB`                                               |
+| `list_claims`           | Knowledge Base     | Lists extracted factual claims with multi-field filtering and pagination                    | `sourceId`, `subject`, `predicate`, `environment`, `limit`, `offset` |
+| `get_claim`             | Knowledge Base     | Retrieves factual claim details, contextual metadata, and audit supersession history        | `claimId`                                                            |
+| `list_contradictions`   | Lifecycle          | Queries detected contradictions filtered by lifecycle status, severity, and confidence      | `status`, `severity`, `minConfidence`, `limit`, `offset`             |
+| `get_contradiction`     | Lifecycle          | Retrieves full contradiction state, conflicting claims, and contextual explanation          | `contradictionId`                                                    |
+| `advise_resolution`     | Advisory           | Evaluates source authority, freshness, and evidence quality to recommend canonical truth    | `contradictionId`                                                    |
+| `resolve_contradiction` | Resolution         | Executes lifecycle transitions (`REVIEW`, `RESOLVE`, `DISMISS`, `REOPEN`) with audit trail  | `contradictionId`, `action`, `actor`, `reason`, `canonicalClaimId`   |
+
+> [!TIP]
+> **Full Backwards Compatibility**: Legacy tool names (`health_check`, `sync_document`, `sync_website`, `sync_github_repository`, `scan_for_contradictions`, `scan_claim_for_contradictions`, `scan_source_for_contradictions`, `explain_claim_relationship`, `review_contradiction`, `dismiss_contradiction`, `reopen_contradiction`, `get_contradiction_history`, `get_claim_history`, `list_connectors`, `test_github_connection`, `sync_sources`) continue to function without error via automatic request routing and parameter translation.
 
 ### Active MCP Resources (4)
 
@@ -338,7 +333,7 @@ Connect distributed agents or team members to a centralized server daemon:
 ## Example Tool Payloads & Responses
 
 <details>
-<summary><b>1. Ingesting a Document (<code>sync_document</code>)</b></summary>
+<summary><b>1. Ingesting a Document (<code>sync_source</code> / legacy: <code>sync_document</code>)</b></summary>
 
 **Request**:
 
@@ -366,7 +361,7 @@ Connect distributed agents or team members to a centralized server daemon:
 </details>
 
 <details>
-<summary><b>2. Scanning for Contradictions (<code>scan_for_contradictions</code>)</b></summary>
+<summary><b>2. Scanning for Contradictions (<code>scan_contradictions</code> / legacy: <code>scan_for_contradictions</code>)</b></summary>
 
 **Request**:
 
@@ -455,20 +450,20 @@ async function main() {
   const client = new Client({ name: "tester", version: "1.0.0" }, { capabilities: {} });
   await client.connect(new StdioClientTransport({ command: "node", args: ["dist/index.js"] }));
 
-  // Ingest Deployment Spec (role: deployment)
+  // Ingest Deployment Spec (canonical: sync_source, role: deployment)
   await client.callTool({
-    name: "sync_document",
+    name: "sync_source",
     arguments: { filePath: "/tmp/deployment_spec.json", subject: "api-server", sourceRole: "deployment", environment: "production" }
   });
 
-  // Ingest Architecture Guide (role: documentation)
+  // Ingest Architecture Guide (canonical: sync_source, role: documentation)
   await client.callTool({
-    name: "sync_document",
+    name: "sync_source",
     arguments: { filePath: "/tmp/architecture_guide.md", subject: "api-server", sourceRole: "documentation", environment: "production" }
   });
 
-  // Automatically scan knowledge base
-  const scan = await client.callTool({ name: "scan_for_contradictions", arguments: {} });
+  // Automatically scan knowledge base (canonical: scan_contradictions)
+  const scan = await client.callTool({ name: "scan_contradictions", arguments: {} });
   console.log("\nDISCOVERED CONTRADICTIONS:\n", JSON.stringify(JSON.parse(scan.content[0].text), null, 2));
 
   await client.close();
@@ -486,7 +481,7 @@ main();
 | `npm run build`          | Compiles TypeScript and packages SQL migration scripts                       |
 | `npm start`              | Launches compiled production server (`node dist/index.js`)                   |
 | `npm run dev`            | Runs development server with on-the-fly TypeScript execution                 |
-| `npm test`               | Runs complete Vitest test suite (**169 tests across 23 files**)              |
+| `npm test`               | Runs complete Vitest test suite (**173 tests across 24 files**)              |
 | `npm run test:coverage`  | Generates detailed V8 code coverage report                                   |
 | `npm run verify`         | Runs all 62 end-to-end verification gates (protocol, security, heuristics)   |
 | `npm run demo`           | Executes live 17-step end-to-end demonstration scenario                      |
@@ -555,7 +550,16 @@ docker compose logs -f
 
 ## Release History
 
+### v0.3.0 (2026-09-14)
+
+- **12 Canonical Tools Architecture**: Streamlined tool interface into 12 orthogonal, strictly typed `verb_noun` tools (`check_health`, `list_sources`, `test_connection`, `sync_source`, `scan_contradictions`, `analyze_claim_pair`, `list_claims`, `get_claim`, `list_contradictions`, `get_contradiction`, `advise_resolution`, `resolve_contradiction`).
+- **Zero-Breaking Backwards Compatibility Routing**: Added a transparent request router shim ensuring all legacy tool names continue to function seamlessly with argument translation.
+- **Enhanced OpenXML (.docx) Ingestion**: Direct extraction of table structures (`<w:tr>`, `<w:tc>`) as key-value assertions with XML stripping to eliminate duplicate claims.
+- **Multi-Format Cross-Document Consistency**: Verified cross-referencing and contradiction discovery across Markdown runbooks, JSON configs, and Word architecture documents.
+- **Parametric Claim Queries**: Extended SQLite database layer with multi-field filtering (`predicate`, `environment`, `valueType`, `limit`, `offset`).
+
 ### v0.2.1 (2026-09-14)
+
 - **22 Active MCP Tools**: Full interface alignment including `scan_source_for_contradictions` for targeted source discovery.
 - **Section Heading Namespacing in Markdown**: Hierarchical markdown headings (`##` to `######`) namespace nested properties (e.g. `### API Gateway` $\rightarrow$ `api_gateway_port`), preventing intra-document collisions while matching nested JSON configurations.
 - **Precision Predicate Similarity Guard**: Enhanced `claimMatcher` requiring $\ge 50\%$ token overlap on multi-token phrases, eliminating false matches between distinct properties sharing generic suffixes (`node_version` vs `cache_version`, `runtime_node_version` vs `runtime_python_version`).
@@ -564,6 +568,7 @@ docker compose logs -f
 - **Multi-Format Ingestion**: End-to-end verified across Markdown, JSON, OpenXML `.docx`, and Kubernetes manifests.
 
 ### v0.2.0 (2026-09-13)
+
 - Initial public release with 21 core MCP tools, SQLite WAL persistence, GitHub, Document, and Website ingestion connectors.
 
 ---

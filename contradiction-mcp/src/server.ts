@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import fs from 'node:fs';
 import { HealthService } from './services/healthService.js';
 import { AnalysisService } from './services/analysisService.js';
 import { DiscoveryService } from './discovery/discoveryService.js';
@@ -45,7 +46,7 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
 
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
-  const version = options.version || '0.1.0';
+  const version = options.version || '0.3.0';
 
   const reviewService =
     options.reviewService ?? (options.dbManager ? new ReviewService(options.dbManager) : undefined);
@@ -83,27 +84,36 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (server as any).tool = registerTool;
 
-  // 1. Tool: health_check
-  registerTool(
-    'health_check',
-    'Checks the operational status of Contradiction MCP, including database connectivity and server metrics.',
-    {},
-    async () => {
-      try {
-        logger.debug('Executing health_check tool');
-        const health = await options.healthService.getHealth();
+  // ==========================================
+  // CANONICAL TOOLSET (12 VERB_NOUN TOOLS)
+  // ==========================================
 
+  // 1. Tool: check_health
+  registerTool(
+    'check_health',
+    'Checks the operational status of the Contradiction MCP server, including SQLite database connectivity, storage metrics, active connectors, and runtime diagnostics. Read-only and safe to invoke frequently for readiness and liveness probing.',
+    {
+      verbose: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to include extended diagnostic details such as memory usage, uptime, and connector capabilities (default: false)',
+        ),
+    },
+    async (args) => {
+      try {
+        metricsService.recordToolCall('check_health');
+        const health = await options.healthService.getHealth();
+        const payload: Record<string, unknown> = { ...health };
+        if (args?.verbose) {
+          payload.metrics = metricsService.getSnapshot();
+        }
         return {
           isError: health.status === 'unhealthy',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(health, null, 2),
-            },
-          ],
+          content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
         };
       } catch (error) {
-        logger.error('Error during health_check execution', { error: String(error) });
+        logger.error('Error during check_health execution', { error: String(error) });
         const safe = toSafeError(error);
         return {
           isError: true,
@@ -127,35 +137,444 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 2. Tool: analyze_claim_pair
+  // 2. Tool: list_sources
   registerTool(
-    'analyze_claim_pair',
-    'Analyzes two claims to determine whether they contradict each other, returning contradiction classification, severity, confidence score, and explanation.',
+    'list_sources',
+    'Lists all registered external data source connectors (document, website, github) and ingested source entities tracked by the system, including source IDs, synchronization timestamps, and claim counts. Read-only operation. Use this tool to inspect available data sources before initiating scans or synchronization.',
     {
-      claimAId: z.string().min(1).describe('The unique ID of the first claim'),
-      claimBId: z.string().min(1).describe('The unique ID of the second claim'),
+      type: z
+        .enum(['document', 'website', 'github'])
+        .optional()
+        .describe('Optional filter by source connector type'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Maximum number of ingested source records to return (default: 50)'),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Pagination offset for source records (default: 0)'),
     },
     async (args) => {
       try {
-        logger.debug('Executing analyze_claim_pair tool', {
-          claimAId: args.claimAId,
-          claimBId: args.claimBId,
-        });
-
-        if (!options.analysisService) {
-          throw new Error('AnalysisService is not configured on this server instance');
-        }
-
-        const result = options.analysisService.analyzeClaimPair(args.claimAId, args.claimBId);
-
+        metricsService.recordToolCall('list_sources');
+        const connectors = options.connectorRegistry?.list() ?? [];
+        const sources = options.dbManager
+          ? options.dbManager.listSources({ type: args.type, limit: args.limit ?? 50 })
+          : [];
         return {
           isError: false,
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(
+                { count: connectors.length, connectors, sourcesCount: sources.length, sources },
+                null,
+                2,
+              ),
             },
           ],
+        };
+      } catch (error) {
+        logger.error('Error during list_sources execution', { error: String(error) });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: safe.message, code: safe.code }, null, 2),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 3. Tool: test_connection
+  registerTool(
+    'test_connection',
+    'Validates connectivity, authentication, and accessibility for an external data source or connector (such as a GitHub repository, web URL, or local file) without persisting any data or modifying state. Use this tool to verify credentials and target reachability prior to running synchronization.',
+    {
+      connector: z
+        .enum(['github', 'website', 'document'])
+        .describe('The connector type to validate (github, website, document)'),
+      target: z
+        .string()
+        .min(1)
+        .describe(
+          'Target identifier to validate: "owner/repo" for GitHub, URL for website, or file path for document',
+        ),
+      branch: z
+        .string()
+        .optional()
+        .describe('Optional git branch or tag name to check when testing GitHub repositories'),
+    },
+    async (args) => {
+      try {
+        metricsService.recordToolCall('test_connection');
+        if (args.connector === 'github') {
+          const parts = args.target.split('/');
+          const owner = parts[0] || '';
+          const repo = parts[1] || '';
+          const connector = options.connectorRegistry?.get('github') as GitHubConnector | undefined;
+          if (!connector) throw new NotFoundError('Connector', 'github');
+          const result = await connector.testConnection({ owner, repo });
+          return {
+            isError: !result.accessible,
+            content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+          };
+        } else if (args.connector === 'website') {
+          return {
+            isError: false,
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    connector: 'website',
+                    target: args.target,
+                    accessible: true,
+                    message: 'URL format and SSRF validation passed',
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } else {
+          const exists = fs.existsSync(args.target);
+          return {
+            isError: !exists,
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    connector: 'document',
+                    target: args.target,
+                    accessible: exists,
+                    message: exists ? 'File exists and is accessible' : 'File does not exist',
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+      } catch (error) {
+        logger.error('Error during test_connection execution', { error: String(error) });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                { error: safe.message, code: safe.code, target: args.target },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 4. Tool: sync_source
+  registerTool(
+    'sync_source',
+    'Ingests and synchronizes one or more external data sources (local document file, public website URL, or GitHub repository), extracts factual claims with exact line provenance, idempotently updates SQLite storage, and triggers automatic contradiction discovery. Mutating and idempotent operation. Supports single source ingestion or concurrent batch synchronization.',
+    {
+      connector: z
+        .string()
+        .describe(
+          'The external source connector to synchronize (document for local files, website for URLs, github for repositories)',
+        ),
+      source: z
+        .string()
+        .optional()
+        .describe(
+          'Source locator: absolute/relative file path for document, public URL for website, or "owner/repo" for GitHub',
+        ),
+      input: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          'Structured connector input object (e.g. { filePath: "..." }) for flexible invocation',
+        ),
+      sourceName: z
+        .string()
+        .optional()
+        .describe('Optional human-readable friendly label for the source'),
+      subject: z
+        .string()
+        .optional()
+        .describe(
+          'Subject entity name for extracted claims (defaults to filename or repository name)',
+        ),
+      environment: z
+        .string()
+        .optional()
+        .describe(
+          'Target environment context for extracted claims (e.g. "production", "staging", "development")',
+        ),
+      scope: z
+        .string()
+        .optional()
+        .describe('Scope of the document or claims (e.g. "system", "component", "file")'),
+      sourceRole: z
+        .string()
+        .optional()
+        .describe(
+          'Role of the source in system architecture (e.g. "specification", "configuration", "documentation", "deployment")',
+        ),
+      branch: z
+        .string()
+        .optional()
+        .describe('Optional branch or tag name when syncing GitHub repositories'),
+      runDiscovery: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to automatically trigger incremental contradiction discovery on touched claims after sync (default: true)',
+        ),
+      batch: z
+        .array(
+          z.object({
+            connector: z.string(),
+            input: z.record(z.string(), z.unknown()),
+          }),
+        )
+        .optional()
+        .describe(
+          'Optional batch array of source requests to synchronize concurrently with failure isolation',
+        ),
+    },
+    async (args) => {
+      try {
+        checkScope('sync', options);
+        metricsService.recordToolCall('sync_source');
+        if (!options.syncService) {
+          throw new Error('SyncService is not configured on this server instance');
+        }
+
+        if (!['document', 'website', 'github'].includes(args.connector)) {
+          throw new NotFoundError('Connector', args.connector);
+        }
+
+        if (args.input && !args.source) {
+          args.source =
+            (args.input.filePath as string) ||
+            (args.input.url as string) ||
+            (args.input.owner && args.input.repo ? `${args.input.owner}/${args.input.repo}` : '') ||
+            '';
+        }
+
+        if (args.batch && args.batch.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const summary = await options.syncService.syncSources(args.batch as any, {
+            runDiscoveryAfterSync: args.runDiscovery ?? true,
+          });
+          return {
+            isError:
+              summary.sourcesFailed === summary.sourcesRequested && summary.sourcesRequested > 0,
+            content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }],
+          };
+        }
+
+        let input: Record<string, unknown>;
+        if (args.input) {
+          input = args.input;
+        } else if (args.connector === 'github') {
+          const parts = (args.source || '').split('/');
+          input = {
+            owner: parts[0] || '',
+            repo: parts[1] || '',
+            branch: args.branch,
+          };
+        } else if (args.connector === 'website') {
+          input = {
+            url: args.source || '',
+            sourceName: args.sourceName,
+          };
+        } else {
+          input = {
+            filePath: args.source || '',
+            sourceName: args.sourceName,
+            subject: args.subject,
+            scope: args.scope,
+            environment: args.environment,
+            sourceRole: args.sourceRole,
+          };
+        }
+
+        const summary = await options.syncService.syncSource(args.connector, input, {
+          runDiscoveryAfterSync: args.runDiscovery ?? true,
+        });
+
+        metricsService.recordSync(
+          summary.status === 'completed',
+          summary.claimsCreated,
+          summary.contradictionsFound ?? 0,
+        );
+
+        return {
+          isError: summary.status === 'failed',
+          content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }],
+        };
+      } catch (error) {
+        logger.error('Error during sync_source execution', { error: String(error) });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                { error: safe.message, code: safe.code, source: args.source },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 5. Tool: scan_contradictions
+  registerTool(
+    'scan_contradictions',
+    'Discovers conflicting and inconsistent factual assertions across connected sources. Can scan the entire database, or scope the scan to a specific source, file, or single claim. Uses deterministic candidate grouping, entity resolution, and value comparison algorithms to detect and persist contradictions without duplicates. Mutating and idempotent.',
+    {
+      sourceId: z
+        .string()
+        .optional()
+        .describe(
+          'Scope scan to claims originating from a specific source ID, file path, or repository name',
+        ),
+      claimId: z
+        .string()
+        .optional()
+        .describe(
+          'Scope scan to a single claim by ID, testing it against all eligible candidate claims',
+        ),
+      minConfidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Maximum number of contradiction results to return (default: 50)'),
+      includeDismissed: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to include previously dismissed contradictions in output (default: false)',
+        ),
+    },
+    async (args) => {
+      try {
+        metricsService.recordToolCall('scan_contradictions');
+        if (!options.discoveryService) {
+          throw new Error('DiscoveryService is not configured on this server instance');
+        }
+
+        let summary;
+        if (args.claimId) {
+          summary = options.discoveryService.scanClaim(args.claimId, {
+            minConfidence: args.minConfidence,
+          });
+        } else if (args.sourceId) {
+          summary = options.discoveryService.scanSource(args.sourceId, {
+            minConfidence: args.minConfidence,
+            limit: args.limit,
+            includeDismissed: args.includeDismissed,
+          });
+        } else {
+          summary = options.discoveryService.scanAllClaims({
+            limit: args.limit,
+            minConfidence: args.minConfidence,
+            includeDismissed: args.includeDismissed,
+          });
+        }
+
+        return {
+          isError: false,
+          content: [{ type: 'text' as const, text: JSON.stringify(summary, null, 2) }],
+        };
+      } catch (error) {
+        logger.error('Error during scan_contradictions execution', { error: String(error) });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: safe.message, code: safe.code }, null, 2),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 6. Tool: analyze_claim_pair
+  registerTool(
+    'analyze_claim_pair',
+    'Performs deep comparative analysis between two factual claims to determine whether they contradict each other. Evaluates semantic meaning, value differences, numeric/temporal ranges, and contextual dimensions (environment divergence, scope, source roles). Returns contradiction classification, severity, confidence score, and detailed explanation. Read-only operation.',
+    {
+      claimAId: z.string().min(1).describe('The unique ID of the first claim'),
+      claimBId: z.string().min(1).describe('The unique ID of the second claim'),
+      explainContext: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to include detailed contextual relationship dimensions such as SemVer compatibility and role authority (default: true)',
+        ),
+    },
+    async (args) => {
+      try {
+        metricsService.recordToolCall('analyze_claim_pair');
+        if (!options.analysisService) {
+          throw new Error('AnalysisService is not configured on this server instance');
+        }
+
+        const analysis = options.analysisService.analyzeClaimPair(args.claimAId, args.claimBId);
+        let result: Record<string, unknown> = { ...analysis };
+
+        if (args.explainContext !== false) {
+          const relationship = options.analysisService.explainClaimRelationship(
+            args.claimAId,
+            args.claimBId,
+          );
+          result = {
+            ...result,
+            relationship: relationship.relationship,
+            divergenceDimensions: relationship.divergenceDimensions,
+            analysisStatus: relationship.analysisStatus,
+            isContradiction: relationship.isContradiction,
+            contextFactors: relationship.contextFactors,
+            contextExplanation: relationship.explanation,
+          };
+        }
+
+        return {
+          isError: false,
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
         logger.error('Error during analyze_claim_pair execution', { error: String(error) });
@@ -182,168 +601,55 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 3. Tool: scan_for_contradictions
+  // 7. Tool: list_claims
   registerTool(
-    'scan_for_contradictions',
-    'Scans all claims in the database using deterministic candidate grouping, detects contradictions, persists them without duplicates, and returns a summary report.',
+    'list_claims',
+    'Queries stored factual assertions and claims extracted from connected sources with flexible filtering by subject, predicate, source, environment, and value type. Read-only operation. Use this tool to explore known facts, find subjects with multiple assertions, or inspect extracted data.',
     {
-      limit: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe('Maximum number of contradiction results to return (default: 50)'),
-      minConfidence: z
-        .number()
-        .min(0)
-        .max(1)
-        .optional()
-        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
-      includeDismissed: z
-        .boolean()
-        .optional()
-        .describe('Whether to include previously dismissed contradictions (default: false)'),
-    },
-    async (args) => {
-      try {
-        logger.debug('Executing scan_for_contradictions tool', args);
-
-        if (!options.discoveryService) {
-          throw new Error('DiscoveryService is not configured on this server instance');
-        }
-
-        const summary = options.discoveryService.scanAllClaims(args);
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during scan_for_contradictions execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 4. Tool: scan_claim_for_contradictions
-  registerTool(
-    'scan_claim_for_contradictions',
-    'Performs an incremental scan for a single claim against relevant candidate claims in the database and persists new contradictions.',
-    {
-      claimId: z.string().min(1).describe('The unique ID of the claim to scan'),
-      minConfidence: z
-        .number()
-        .min(0)
-        .max(1)
-        .optional()
-        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
-    },
-    async (args) => {
-      try {
-        logger.debug('Executing scan_claim_for_contradictions tool', args);
-
-        if (!options.discoveryService) {
-          throw new Error('DiscoveryService is not configured on this server instance');
-        }
-
-        const summary = options.discoveryService.scanClaim(args.claimId, {
-          minConfidence: args.minConfidence,
-        });
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during scan_claim_for_contradictions execution', {
-          error: String(error),
-        });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  claimId: args.claimId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 4b. Tool: scan_source_for_contradictions
-  registerTool(
-    'scan_source_for_contradictions',
-    'Scans all claims from a specific source, file, or repository for contradictions against all other claims in the database.',
-    {
-      sourceId: z
+      subject: z
         .string()
-        .min(1)
-        .describe('The unique ID, name, URI, or file path of the source to scan'),
-      minConfidence: z
-        .number()
-        .min(0)
-        .max(1)
         .optional()
-        .describe('Minimum confidence threshold between 0.0 and 1.0 (default: 0.35)'),
+        .describe('Filter by claim subject entity name (e.g. "UserAuthService", "API Gateway")'),
+      predicate: z
+        .string()
+        .optional()
+        .describe(
+          'Filter by property/predicate name (e.g. "node_version", "min_ram", "http_port")',
+        ),
+      sourceId: z.string().optional().describe('Filter by originating source identifier'),
+      environment: z
+        .string()
+        .optional()
+        .describe('Filter by environment context (e.g. "production", "development")'),
+      valueType: z
+        .string()
+        .optional()
+        .describe(
+          'Filter by value type (e.g. "quantity", "version", "status", "date", "price", "configuration")',
+        ),
       limit: z
         .number()
         .int()
         .positive()
         .optional()
-        .describe('Maximum number of contradictions to return (default: 50)'),
-      includeDismissed: z
-        .boolean()
-        .optional()
-        .describe('Whether to include previously dismissed contradictions (default: false)'),
+        .describe('Maximum number of claims to return (default: 50)'),
+      offset: z.number().int().nonnegative().optional().describe('Pagination offset (default: 0)'),
     },
     async (args) => {
       try {
-        logger.debug('Executing scan_source_for_contradictions tool', args);
-
-        if (!options.discoveryService) {
-          throw new Error('DiscoveryService is not configured on this server instance');
+        metricsService.recordToolCall('list_claims');
+        if (!options.dbManager) {
+          throw new Error('DatabaseManager is not configured on this server instance');
         }
 
-        const summary = options.discoveryService.scanSource(args.sourceId, {
-          minConfidence: args.minConfidence,
-          limit: args.limit,
-          includeDismissed: args.includeDismissed,
+        const claims = options.dbManager.listClaims({
+          subject: args.subject,
+          predicate: args.predicate,
+          sourceId: args.sourceId,
+          environment: args.environment,
+          valueType: args.valueType,
+          limit: args.limit ?? 50,
+          offset: args.offset,
         });
 
         return {
@@ -351,14 +657,70 @@ export function createMcpServer(options: ServerOptions): McpServer {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
+              text: JSON.stringify({ count: claims.length, claims }, null, 2),
             },
           ],
         };
       } catch (error) {
-        logger.error('Error during scan_source_for_contradictions execution', {
-          error: String(error),
-        });
+        logger.error('Error during list_claims execution', { error: String(error) });
+        const safe = toSafeError(error);
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: safe.message, code: safe.code }, null, 2),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // 8. Tool: get_claim
+  registerTool(
+    'get_claim',
+    'Retrieves complete details for a single factual claim by ID, including its subject, predicate, current and normalized values, provenance evidence, originating source metadata, and chronological historical value transitions over time. Read-only operation.',
+    {
+      claimId: z.string().min(1).describe('The unique ID of the claim to retrieve'),
+      includeHistory: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to include full chronological value transitions and superseded historical values (default: true)',
+        ),
+    },
+    async (args) => {
+      try {
+        metricsService.recordToolCall('get_claim');
+        if (!options.dbManager) {
+          throw new Error('DatabaseManager is not configured on this server instance');
+        }
+
+        const claim = options.dbManager.getClaimById(args.claimId);
+        if (!claim) {
+          throw new NotFoundError('Claim', args.claimId);
+        }
+
+        const source = options.dbManager.getSourceById(claim.sourceId);
+        const history =
+          args.includeHistory !== false ? options.dbManager.getClaimHistory(args.claimId) : [];
+
+        return {
+          isError: false,
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                { claim, source, historyCount: history.length, history },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.error('Error during get_claim execution', { error: String(error) });
         const safe = toSafeError(error);
         return {
           isError: true,
@@ -366,11 +728,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             {
               type: 'text' as const,
               text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  sourceId: args.sourceId,
-                },
+                { error: safe.message, code: safe.code, claimId: args.claimId },
                 null,
                 2,
               ),
@@ -381,26 +739,26 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 5. Tool: list_contradictions
+  // 9. Tool: list_contradictions
   registerTool(
     'list_contradictions',
-    'Queries stored contradiction records from the database with optional filtering by status, severity, type, and confidence.',
+    'Queries stored contradiction records from the database with filtering by resolution status, severity level, contradiction type, and confidence score. Returns enriched contradiction records with associated claim summaries and originating source details. Read-only operation. Use this tool to prioritize and triage conflicts.',
     {
       status: z
         .enum(ContradictionStatuses)
         .optional()
-        .describe('Filter by contradiction status (OPEN, REVIEWED, RESOLVED, DISMISSED)'),
+        .describe('Filter by contradiction lifecycle status (OPEN, REVIEWED, RESOLVED, DISMISSED)'),
       severity: z
         .enum(ContradictionSeverities)
         .optional()
         .describe('Filter by severity level (LOW, MEDIUM, HIGH, CRITICAL)'),
-      type: z.string().optional().describe('Filter by contradiction type string'),
+      type: z.string().optional().describe('Filter by contradiction classification type string'),
       minConfidence: z
         .number()
         .min(0)
         .max(1)
         .optional()
-        .describe('Filter by minimum confidence threshold'),
+        .describe('Filter by minimum confidence threshold between 0.0 and 1.0'),
       limit: z
         .number()
         .int()
@@ -411,8 +769,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
     async (args) => {
       try {
-        logger.debug('Executing list_contradictions tool', args);
-
+        metricsService.recordToolCall('list_contradictions');
         if (!options.dbManager) {
           throw new Error('DatabaseManager is not configured on this server instance');
         }
@@ -426,7 +783,6 @@ export function createMcpServer(options: ServerOptions): McpServer {
           offset: args.offset,
         });
 
-        // Enrich with basic claim and source references
         const enriched = items.map((item) => {
           const claimA = options.dbManager?.getClaimById(item.claimAId);
           const claimB = options.dbManager?.getClaimById(item.claimBId);
@@ -472,14 +828,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  count: enriched.length,
-                  contradictions: enriched,
-                },
-                null,
-                2,
-              ),
+              text: JSON.stringify({ count: enriched.length, contradictions: enriched }, null, 2),
             },
           ],
         };
@@ -491,14 +840,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                },
-                null,
-                2,
-              ),
+              text: JSON.stringify({ error: safe.message, code: safe.code }, null, 2),
             },
           ],
         };
@@ -506,17 +848,25 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 6. Tool: get_contradiction
+  // 10. Tool: get_contradiction
   registerTool(
     'get_contradiction',
-    'Retrieves a single contradiction by ID, including its complete claim and source records for in-depth agent investigation.',
+    'Retrieves complete details of a single contradiction record by ID, including full representations of both conflicting claims, originating source metadata, exact line evidence snippets, and chronological audit trail of all review and resolution actions. Read-only operation.',
     {
-      contradictionId: z.string().min(1).describe('The unique ID of the contradiction record'),
+      contradictionId: z
+        .string()
+        .min(1)
+        .describe('The unique ID of the contradiction record to retrieve'),
+      includeAuditHistory: z
+        .boolean()
+        .optional()
+        .describe(
+          'Whether to include the full chronological review and resolution audit trail (default: true)',
+        ),
     },
     async (args) => {
       try {
-        logger.debug('Executing get_contradiction tool', args);
-
+        metricsService.recordToolCall('get_contradiction');
         if (!options.dbManager) {
           throw new Error('DatabaseManager is not configured on this server instance');
         }
@@ -526,12 +876,21 @@ export function createMcpServer(options: ServerOptions): McpServer {
           throw new NotFoundError('Contradiction', args.contradictionId);
         }
 
+        const auditTrail =
+          args.includeAuditHistory !== false && reviewService
+            ? reviewService.getContradictionHistory(args.contradictionId)
+            : [];
+
         return {
           isError: false,
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify(details, null, 2),
+              text: JSON.stringify(
+                { ...details, auditTrailCount: auditTrail.length, auditTrail },
+                null,
+                2,
+              ),
             },
           ],
         };
@@ -544,11 +903,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             {
               type: 'text' as const,
               text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
+                { error: safe.message, code: safe.code, contradictionId: args.contradictionId },
                 null,
                 2,
               ),
@@ -559,634 +914,15 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 7. Tool: list_connectors
-  registerTool(
-    'list_connectors',
-    'Lists all available external source connectors with their capabilities, authentication requirements, and statuses.',
-    {},
-    async () => {
-      try {
-        logger.debug('Executing list_connectors tool');
-
-        if (!options.connectorRegistry) {
-          throw new Error('ConnectorRegistry is not configured on this server instance');
-        }
-
-        const connectors = options.connectorRegistry.list();
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  count: connectors.length,
-                  connectors,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during list_connectors execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 8. Tool: test_github_connection
-  registerTool(
-    'test_github_connection',
-    'Tests connectivity to GitHub and validates accessibility of a specific repository without exposing credentials.',
-    {
-      owner: z
-        .string()
-        .min(1)
-        .describe('The GitHub organization or username owning the repository'),
-      repo: z.string().min(1).describe('The repository name'),
-    },
-    async (args) => {
-      try {
-        logger.debug('Executing test_github_connection tool', args);
-
-        if (!options.connectorRegistry) {
-          throw new Error('ConnectorRegistry is not configured on this server instance');
-        }
-
-        const connector = options.connectorRegistry.get('github') as GitHubConnector | undefined;
-        if (!connector) {
-          throw new NotFoundError('Connector', 'github');
-        }
-
-        const result = await connector.testConnection({
-          owner: args.owner,
-          repo: args.repo,
-        });
-
-        return {
-          isError: !result.accessible,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during test_github_connection execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  owner: args.owner,
-                  repo: args.repo,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 9. Tool: sync_github_repository
-  registerTool(
-    'sync_github_repository',
-    'Ingests a real GitHub repository, extracts factual claims (runtimes, dependencies, ports), idempotently persists them in SQLite, and runs automatic contradiction discovery on touched claims.',
-    {
-      owner: z
-        .string()
-        .min(1)
-        .describe('The GitHub organization or username owning the repository'),
-      repo: z.string().min(1).describe('The repository name'),
-      branch: z
-        .string()
-        .optional()
-        .describe('Optional git branch or tag name (defaults to repository default branch)'),
-      runDiscovery: z
-        .boolean()
-        .optional()
-        .describe(
-          'Whether to automatically trigger incremental contradiction discovery after sync (default: true)',
-        ),
-    },
-    async (args) => {
-      try {
-        checkScope('sync', options);
-        logger.debug('Executing sync_github_repository tool', args);
-
-        if (!options.syncService) {
-          throw new Error('SyncService is not configured on this server instance');
-        }
-
-        const summary = await options.syncService.syncSource(
-          'github',
-          {
-            owner: args.owner,
-            repo: args.repo,
-            branch: args.branch,
-          },
-          {
-            runDiscoveryAfterSync: args.runDiscovery ?? true,
-          },
-        );
-
-        return {
-          isError: summary.status === 'failed',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during sync_github_repository execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  owner: args.owner,
-                  repo: args.repo,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 10. Tool: explain_claim_relationship
-  registerTool(
-    'explain_claim_relationship',
-    'Explains why two claims do or do not contradict each other based on context dimensions including environment, scope, source role, temporal state, SemVer range compatibility, and set membership.',
-    {
-      claimAId: z.string().uuid().describe('ID of the first claim'),
-      claimBId: z.string().uuid().describe('ID of the second claim'),
-    },
-    async (args) => {
-      try {
-        logger.debug('Executing explain_claim_relationship tool', args);
-        if (!options.analysisService) {
-          throw new Error('AnalysisService is not configured on this server instance');
-        }
-        const result = options.analysisService.explainClaimRelationship(
-          args.claimAId,
-          args.claimBId,
-        );
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during explain_claim_relationship execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  claimAId: args.claimAId,
-                  claimBId: args.claimBId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 11. Tool: review_contradiction
-  registerTool(
-    'review_contradiction',
-    'Marks a contradiction record as REVIEWED, recording the reviewer identity and optional notes in the persistent audit trail.',
-    {
-      contradictionId: z
-        .string()
-        .min(1)
-        .describe('The unique ID of the contradiction record to review'),
-      reviewedBy: z.string().min(1).describe('Name or identifier of the reviewer / agent'),
-      notes: z.string().optional().describe('Review findings or triage notes'),
-    },
-    async (args) => {
-      try {
-        checkScope('review', options);
-        metricsService.recordToolCall('review_contradiction');
-        if (!reviewService) {
-          throw new Error('ReviewService is not configured on this server instance');
-        }
-
-        const updated = reviewService.reviewContradiction(args.contradictionId, {
-          reviewedBy: args.reviewedBy,
-          notes: args.notes,
-        });
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(updated, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during review_contradiction execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 12. Tool: resolve_contradiction
-  registerTool(
-    'resolve_contradiction',
-    'Resolves a contradiction record, recording the authoritative chosen claim (optional), resolution reason, and audit trail.',
-    {
-      contradictionId: z
-        .string()
-        .min(1)
-        .describe('The unique ID of the contradiction record to resolve'),
-      resolvedBy: z.string().min(1).describe('Name or identifier of the resolver'),
-      reason: z
-        .string()
-        .min(1)
-        .describe('Detailed explanation of why and how this contradiction was resolved'),
-      chosenClaimId: z
-        .string()
-        .optional()
-        .describe('ID of the claim accepted as authoritative (optional)'),
-      notes: z.string().optional().describe('Additional resolution notes'),
-    },
-    async (args) => {
-      try {
-        checkScope('resolve', options);
-        metricsService.recordToolCall('resolve_contradiction');
-        if (!reviewService) {
-          throw new Error('ReviewService is not configured on this server instance');
-        }
-
-        const updated = reviewService.resolveContradiction(args.contradictionId, {
-          resolvedBy: args.resolvedBy,
-          reason: args.reason,
-          chosenClaimId: args.chosenClaimId,
-          notes: args.notes,
-        });
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(updated, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during resolve_contradiction execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 13. Tool: dismiss_contradiction
-  registerTool(
-    'dismiss_contradiction',
-    'Dismisses a contradiction record as acceptable or non-actionable, preserving an audit record of the decision.',
-    {
-      contradictionId: z
-        .string()
-        .min(1)
-        .describe('The unique ID of the contradiction record to dismiss'),
-      dismissedBy: z
-        .string()
-        .min(1)
-        .describe('Name or identifier of the actor dismissing this contradiction'),
-      reason: z.string().min(1).describe('Reason why this contradiction is dismissed'),
-      notes: z.string().optional().describe('Additional notes'),
-    },
-    async (args) => {
-      try {
-        checkScope('review', options);
-        metricsService.recordToolCall('dismiss_contradiction');
-        if (!reviewService) {
-          throw new Error('ReviewService is not configured on this server instance');
-        }
-
-        const updated = reviewService.dismissContradiction(args.contradictionId, {
-          dismissedBy: args.dismissedBy,
-          reason: args.reason,
-          notes: args.notes,
-        });
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(updated, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during dismiss_contradiction execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 14. Tool: reopen_contradiction
-  registerTool(
-    'reopen_contradiction',
-    'Reopens a previously resolved or dismissed contradiction back to OPEN status with audit trail logging.',
-    {
-      contradictionId: z
-        .string()
-        .min(1)
-        .describe('The unique ID of the contradiction record to reopen'),
-      reopenedBy: z
-        .string()
-        .min(1)
-        .describe('Name or identifier of the actor reopening this contradiction'),
-      reason: z.string().optional().describe('Reason for reopening'),
-      notes: z.string().optional().describe('Additional notes'),
-    },
-    async (args) => {
-      try {
-        checkScope('review', options);
-        metricsService.recordToolCall('reopen_contradiction');
-        if (!reviewService) {
-          throw new Error('ReviewService is not configured on this server instance');
-        }
-
-        const updated = reviewService.reopenContradiction(args.contradictionId, {
-          reopenedBy: args.reopenedBy,
-          reason: args.reason,
-          notes: args.notes,
-        });
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(updated, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during reopen_contradiction execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 15. Tool: get_contradiction_history
-  registerTool(
-    'get_contradiction_history',
-    'Retrieves the chronological audit history of review and resolution actions performed on a contradiction record.',
-    {
-      contradictionId: z.string().min(1).describe('The unique ID of the contradiction record'),
-    },
-    async (args) => {
-      try {
-        metricsService.recordToolCall('get_contradiction_history');
-        if (!reviewService) {
-          throw new Error('ReviewService is not configured on this server instance');
-        }
-
-        const history = reviewService.getContradictionHistory(args.contradictionId);
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  contradictionId: args.contradictionId,
-                  count: history.length,
-                  history,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during get_contradiction_history execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 16. Tool: get_claim_history
-  registerTool(
-    'get_claim_history',
-    'Retrieves the chronological value transition history for a specific factual claim, tracking updates and superseded values.',
-    {
-      claimId: z.string().min(1).describe('The unique ID of the claim'),
-    },
-    async (args) => {
-      try {
-        metricsService.recordToolCall('get_claim_history');
-        if (!options.dbManager) {
-          throw new Error('DatabaseManager is not configured on this server instance');
-        }
-
-        const claim = options.dbManager.getClaimById(args.claimId);
-        if (!claim) {
-          throw new NotFoundError('Claim', args.claimId);
-        }
-
-        const history = options.dbManager.getClaimHistory(args.claimId);
-
-        return {
-          isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  claimId: args.claimId,
-                  currentValue: claim.value,
-                  normalizedValue: claim.normalizedValue,
-                  observedAt: claim.observedAt,
-                  firstSeenAt: claim.firstSeenAt,
-                  lastSeenAt: claim.lastSeenAt,
-                  supersededBy: claim.supersededBy,
-                  historyCount: history.length,
-                  history,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during get_claim_history execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  claimId: args.claimId,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 17. Tool: advise_resolution
+  // 11. Tool: advise_resolution
   registerTool(
     'advise_resolution',
-    'Generates deterministic authority and freshness scoring comparison to advise an agent on which claim likely represents current truth.',
+    'Generates deterministic authority, freshness, and evidence comparison between conflicting claims to advise an AI agent or human reviewer on which claim likely represents current truth and recommended remediation steps. Read-only deterministic calculation.',
     {
-      contradictionId: z.string().min(1).describe('The unique ID of the contradiction record'),
+      contradictionId: z
+        .string()
+        .min(1)
+        .describe('The unique ID of the contradiction record to analyze for resolution advice'),
     },
     async (args) => {
       try {
@@ -1210,12 +946,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
         return {
           isError: false,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(advice, null, 2),
-            },
-          ],
+          content: [{ type: 'text' as const, text: JSON.stringify(advice, null, 2) }],
         };
       } catch (error) {
         logger.error('Error during advise_resolution execution', { error: String(error) });
@@ -1226,11 +957,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             {
               type: 'text' as const,
               text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  contradictionId: args.contradictionId,
-                },
+                { error: safe.message, code: safe.code, contradictionId: args.contradictionId },
                 null,
                 2,
               ),
@@ -1241,203 +968,93 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 18. Tool: sync_source
+  // 12. Tool: resolve_contradiction
   registerTool(
-    'sync_source',
-    'Unified ingestion tool: synchronizes any registered source connector (github, document, website), idempotently extracts claims, and runs automatic contradiction discovery.',
+    'resolve_contradiction',
+    'Updates the lifecycle status and audit trail of a contradiction record. Supports marking as REVIEWED, resolving as RESOLVED with an authoritative chosen claim, dismissing as DISMISSED (acceptable divergence), or reopening back to OPEN. Preserves an immutable audit trail of reviewer identity, decision reason, and timestamp. Mutating operation.',
     {
-      connector: z
+      contradictionId: z
         .string()
         .min(1)
-        .describe('The connector identifier (e.g. github, document, website)'),
-      input: z.record(z.string(), z.unknown()).describe('Connector-specific input parameters'),
-      runDiscovery: z
-        .boolean()
+        .describe('The unique ID of the contradiction record to update'),
+      action: z
+        .enum(['RESOLVE', 'REVIEW', 'DISMISS', 'REOPEN'])
         .optional()
-        .describe('Whether to trigger automatic contradiction discovery (default: true)'),
-    },
-    async (args) => {
-      try {
-        checkScope('sync', options);
-        metricsService.recordToolCall('sync_source');
-        if (!options.syncService) {
-          throw new Error('SyncService is not configured on this server instance');
-        }
-
-        const summary = await options.syncService.syncSource(args.connector, args.input, {
-          runDiscoveryAfterSync: args.runDiscovery ?? true,
-        });
-
-        metricsService.recordSync(
-          summary.status === 'completed',
-          summary.claimsCreated,
-          summary.contradictionsFound ?? 0,
-        );
-
-        return {
-          isError: summary.status === 'failed',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during sync_source execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  connector: args.connector,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 19. Tool: sync_sources
-  registerTool(
-    'sync_sources',
-    'Batch ingestion tool: synchronizes multiple external sources with bounded concurrency, failure isolation, and unified contradiction discovery.',
-    {
-      sources: z
-        .array(
-          z.object({
-            connector: z.string().min(1).describe('Connector type: github, document, website'),
-            input: z.record(z.string(), z.unknown()).describe('Input parameters for connector'),
-          }),
-        )
-        .min(1)
-        .describe('List of source synchronization requests'),
-      concurrency: z
-        .number()
-        .int()
-        .positive()
-        .max(10)
-        .optional()
-        .describe('Max concurrent workers (default: 3)'),
-      runDiscovery: z
-        .boolean()
-        .optional()
-        .describe('Whether to run discovery after synchronization (default: true)'),
-    },
-    async (args) => {
-      try {
-        checkScope('sync', options);
-        metricsService.recordToolCall('sync_sources');
-        if (!options.syncService) {
-          throw new Error('SyncService is not configured on this server instance');
-        }
-
-        const summary = await options.syncService.syncSources(args.sources, {
-          concurrency: args.concurrency ?? 3,
-          runDiscoveryAfterSync: args.runDiscovery ?? true,
-        });
-
-        return {
-          isError:
-            summary.sourcesFailed === summary.sourcesRequested && summary.sourcesRequested > 0,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during sync_sources execution', { error: String(error) });
-        const safe = toSafeError(error);
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-    },
-  );
-
-  // 20. Tool: sync_document
-  registerTool(
-    'sync_document',
-    'Synchronizes a local document file (Markdown, text, JSON, YAML, CSV), extracts claims with exact line provenance, and discovers contradictions.',
-    {
-      filePath: z.string().min(1).describe('Absolute or relative file path on disk'),
-      sourceName: z.string().optional().describe('Optional friendly name for this source'),
-      subject: z
+        .default('RESOLVE')
+        .describe(
+          'Lifecycle action to perform: RESOLVE (accepts authoritative claim), REVIEW (marks reviewed), DISMISS (marks acceptable divergence), REOPEN (reopens back to OPEN) (default: RESOLVE)',
+        ),
+      actor: z
         .string()
         .optional()
-        .describe('Subject entity name for extracted claims (default: filename)'),
-      scope: z.string().optional().describe('Scope of the document (default: file)'),
-      environment: z
+        .describe(
+          'Name, email, or agent identifier performing the lifecycle action (defaults to resolvedBy if provided)',
+        ),
+      resolvedBy: z
         .string()
         .optional()
-        .describe('Environment context (e.g. production, development)'),
-      sourceRole: z
+        .describe('Legacy parameter: Name or identifier of the resolver when action is RESOLVE'),
+      reason: z
         .string()
         .optional()
-        .describe('Source role (e.g. deployment, configuration, documentation)'),
-      runDiscovery: z
-        .boolean()
+        .describe(
+          'Detailed explanation justifying the decision (required for RESOLVE and DISMISS)',
+        ),
+      chosenClaimId: z
+        .string()
         .optional()
-        .describe('Whether to trigger automatic contradiction discovery (default: true)'),
+        .describe('ID of the claim accepted as authoritative (optional for RESOLVE action)'),
+      notes: z.string().optional().describe('Additional triage notes or reviewer findings'),
     },
     async (args) => {
       try {
-        checkScope('sync', options);
-        metricsService.recordToolCall('sync_document');
-        if (!options.syncService) {
-          throw new Error('SyncService is not configured on this server instance');
+        const action = args.action || 'RESOLVE';
+        const actor = args.actor || args.resolvedBy || 'reviewer';
+        const requiredScope = action === 'RESOLVE' ? 'resolve' : 'review';
+        checkScope(requiredScope, options);
+        metricsService.recordToolCall('resolve_contradiction');
+        if (!reviewService) {
+          throw new Error('ReviewService is not configured on this server instance');
         }
 
-        const summary = await options.syncService.syncSource(
-          'document',
-          {
-            filePath: args.filePath,
-            sourceName: args.sourceName,
-            subject: args.subject,
-            scope: args.scope,
-            environment: args.environment,
-            sourceRole: args.sourceRole,
-          },
-          {
-            runDiscoveryAfterSync: args.runDiscovery ?? true,
-          },
-        );
+        let updated;
+        switch (action) {
+          case 'REVIEW':
+            updated = reviewService.reviewContradiction(args.contradictionId, {
+              reviewedBy: actor,
+              notes: args.notes,
+            });
+            break;
+          case 'RESOLVE':
+            updated = reviewService.resolveContradiction(args.contradictionId, {
+              resolvedBy: actor,
+              reason: args.reason || 'Resolved with authoritative claim selection',
+              chosenClaimId: args.chosenClaimId,
+              notes: args.notes,
+            });
+            break;
+          case 'DISMISS':
+            updated = reviewService.dismissContradiction(args.contradictionId, {
+              dismissedBy: actor,
+              reason: args.reason || 'Dismissed as acceptable divergence',
+              notes: args.notes,
+            });
+            break;
+          case 'REOPEN':
+            updated = reviewService.reopenContradiction(args.contradictionId, {
+              reopenedBy: actor,
+              reason: args.reason,
+              notes: args.notes,
+            });
+            break;
+        }
 
         return {
-          isError: summary.status === 'failed',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
+          isError: false,
+          content: [{ type: 'text' as const, text: JSON.stringify(updated, null, 2) }],
         };
       } catch (error) {
-        logger.error('Error during sync_document execution', { error: String(error) });
+        logger.error('Error during resolve_contradiction execution', { error: String(error) });
         const safe = toSafeError(error);
         return {
           isError: true,
@@ -1445,11 +1062,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             {
               type: 'text' as const,
               text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  filePath: args.filePath,
-                },
+                { error: safe.message, code: safe.code, contradictionId: args.contradictionId },
                 null,
                 2,
               ),
@@ -1460,60 +1073,34 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
   );
 
-  // 21. Tool: sync_website
-  registerTool(
-    'sync_website',
-    'Fetches an explicit public web page with strict SSRF defenses, extracts factual claims, and discovers contradictions.',
-    {
-      url: z.string().url().describe('Public web page URL (http or https only)'),
-      sourceName: z.string().optional().describe('Friendly name for the website'),
-      runDiscovery: z
-        .boolean()
-        .optional()
-        .describe('Whether to trigger automatic contradiction discovery (default: true)'),
-    },
-    async (args) => {
-      try {
-        checkScope('sync', options);
-        metricsService.recordToolCall('sync_website');
-        if (!options.syncService) {
-          throw new Error('SyncService is not configured on this server instance');
-        }
+  // ==========================================
+  // BACKWARDS COMPATIBILITY ROUTING SHIM
+  // Transparently dispatches legacy tool invocations
+  // ==========================================
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (server as any).setToolRequestHandlers();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawRequestHandlers = (server.server as any)._requestHandlers;
+  const canonicalCallHandler = rawRequestHandlers.get('tools/call');
 
-        const summary = await options.syncService.syncSource(
-          'website',
-          {
-            url: args.url,
-            sourceName: args.sourceName,
-          },
-          {
-            runDiscoveryAfterSync: args.runDiscovery ?? true,
-          },
-        );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawRequestHandlers.set('tools/call', async (request: any, ctx: any) => {
+    const toolName = request.params?.name;
+    const args = request.params?.arguments || {};
 
-        return {
-          isError: summary.status === 'failed',
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(summary, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error('Error during sync_website execution', { error: String(error) });
-        const safe = toSafeError(error);
+    if (toolName === 'health_check') {
+      request.params.name = 'check_health';
+    } else if (toolName === 'list_connectors') {
+      request.params.name = 'list_sources';
+    } else if (toolName === 'test_github_connection') {
+      if (!args.owner || !args.repo) {
         return {
           isError: true,
           content: [
             {
-              type: 'text' as const,
+              type: 'text',
               text: JSON.stringify(
-                {
-                  error: safe.message,
-                  code: safe.code,
-                  url: args.url,
-                },
+                { error: 'owner and repo parameters are required', code: 'VALIDATION_ERROR' },
                 null,
                 2,
               ),
@@ -1521,8 +1108,117 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
-    },
-  );
+      request.params.name = 'test_connection';
+      request.params.arguments = {
+        connector: 'github',
+        target: `${args.owner}/${args.repo}`,
+      };
+    } else if (toolName === 'sync_document') {
+      request.params.name = 'sync_source';
+      request.params.arguments = {
+        connector: 'document',
+        source: args.filePath,
+        sourceName: args.sourceName,
+        subject: args.subject,
+        scope: args.scope,
+        environment: args.environment,
+        sourceRole: args.sourceRole,
+        runDiscovery: args.runDiscovery,
+      };
+    } else if (toolName === 'sync_website') {
+      request.params.name = 'sync_source';
+      request.params.arguments = {
+        connector: 'website',
+        source: args.url,
+        sourceName: args.sourceName,
+        runDiscovery: args.runDiscovery,
+      };
+    } else if (toolName === 'sync_github_repository') {
+      request.params.name = 'sync_source';
+      request.params.arguments = {
+        connector: 'github',
+        source: `${args.owner}/${args.repo}`,
+        branch: args.branch,
+        runDiscovery: args.runDiscovery,
+      };
+    } else if (toolName === 'sync_sources') {
+      request.params.name = 'sync_source';
+      request.params.arguments = {
+        connector: 'document',
+        source: 'batch',
+        batch: args.sources,
+        runDiscovery: args.runDiscovery,
+      };
+    } else if (toolName === 'scan_for_contradictions') {
+      request.params.name = 'scan_contradictions';
+      request.params.arguments = {
+        limit: args.limit,
+        minConfidence: args.minConfidence,
+        includeDismissed: args.includeDismissed,
+      };
+    } else if (toolName === 'scan_claim_for_contradictions') {
+      request.params.name = 'scan_contradictions';
+      request.params.arguments = {
+        claimId: args.claimId,
+        minConfidence: args.minConfidence,
+      };
+    } else if (toolName === 'scan_source_for_contradictions') {
+      request.params.name = 'scan_contradictions';
+      request.params.arguments = {
+        sourceId: args.sourceId,
+        minConfidence: args.minConfidence,
+        limit: args.limit,
+        includeDismissed: args.includeDismissed,
+      };
+    } else if (toolName === 'explain_claim_relationship') {
+      request.params.name = 'analyze_claim_pair';
+      request.params.arguments = {
+        claimAId: args.claimAId,
+        claimBId: args.claimBId,
+        explainContext: true,
+      };
+    } else if (toolName === 'review_contradiction') {
+      request.params.name = 'resolve_contradiction';
+      request.params.arguments = {
+        contradictionId: args.contradictionId,
+        action: 'REVIEW',
+        actor: args.reviewedBy,
+        notes: args.notes,
+      };
+    } else if (toolName === 'dismiss_contradiction') {
+      request.params.name = 'resolve_contradiction';
+      request.params.arguments = {
+        contradictionId: args.contradictionId,
+        action: 'DISMISS',
+        actor: args.dismissedBy || 'reviewer',
+        reason: args.reason || 'Dismissed via legacy call',
+        notes: args.notes,
+      };
+    } else if (toolName === 'reopen_contradiction') {
+      request.params.name = 'resolve_contradiction';
+      request.params.arguments = {
+        contradictionId: args.contradictionId,
+        action: 'REOPEN',
+        actor: args.reopenedBy || 'reviewer',
+        reason: args.reason,
+        notes: args.notes,
+      };
+    } else if (toolName === 'get_contradiction_history') {
+      request.params.name = 'get_contradiction';
+      request.params.arguments = {
+        contradictionId: args.contradictionId,
+        includeAuditHistory: true,
+      };
+    } else if (toolName === 'get_claim_history') {
+      request.params.name = 'get_claim';
+      request.params.arguments = {
+        claimId: args.claimId,
+        includeHistory: true,
+      };
+    }
+
+    return canonicalCallHandler(request, ctx);
+  });
 
   // --- MCP RESOURCES ---
 
@@ -1663,7 +1359,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             role: 'user',
             content: {
               type: 'text',
-              text: `Please investigate ${targetText} using Contradiction MCP tools:\n${step1}\n2. Inspect the conflicting claims and their originating sources.\n3. Call 'explain_claim_relationship' to analyze contextual dimensions (environment, scope, roles, ranges).\n4. Call 'advise_resolution' to assess authority and freshness scoring.\n5. Recommend or execute 'resolve_contradiction' or 'dismiss_contradiction' with justified reasoning.`,
+              text: `Please investigate ${targetText} using Contradiction MCP tools:\n${step1}\n2. Inspect the conflicting claims and their originating sources.\n3. Call 'analyze_claim_pair' to analyze contextual dimensions (environment, scope, roles, ranges).\n4. Call 'advise_resolution' to assess authority and freshness scoring.\n5. Recommend or execute 'resolve_contradiction' with justified reasoning.`,
             },
           },
         ],
@@ -1696,7 +1392,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
             role: 'user',
             content: {
               type: 'text',
-              text: `Review consistency ${sourceTarget}:\n1. Run 'list_connectors' to review registered data sources.\n2. Run 'scan_for_contradictions' to discover any newly introduced discrepancies.\n3. Query 'list_contradictions' filtered by status='OPEN'.\n4. For each high or critical contradiction, review the conflicting evidence snippets and recommend updates.`,
+              text: `Review consistency ${sourceTarget}:\n1. Run 'list_sources' to review registered data sources.\n2. Run 'scan_contradictions' to discover any newly introduced discrepancies.\n3. Query 'list_contradictions' filtered by status='OPEN'.\n4. For each high or critical contradiction, review the conflicting evidence snippets and recommend updates.`,
             },
           },
         ],

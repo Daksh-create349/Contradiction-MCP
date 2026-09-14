@@ -1,6 +1,6 @@
 {
   "name": "contradiction-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Production-quality MCP server for detecting conflicting and inconsistent information across connected sources",
   "type": "module",
   "main": "dist/index.js",

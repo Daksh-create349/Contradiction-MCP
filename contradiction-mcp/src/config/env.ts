@@ -28,7 +28,7 @@ const EnvSchema = z.object({
   DATABASE_PATH: z.string().min(1).default(getDefaultDatabasePath()),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   SERVER_NAME: z.string().min(1).default('contradiction-mcp'),
-  SERVER_VERSION: z.string().min(1).default('0.2.1'),
+  SERVER_VERSION: z.string().min(1).default('0.3.0'),
   GITHUB_TOKEN: z.string().optional(),
   MCP_TRANSPORT: z.enum(['stdio', 'http']).default('stdio'),
   HTTP_HOST: z.string().default('0.0.0.0'),

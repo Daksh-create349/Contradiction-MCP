@@ -193,17 +193,47 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
           encoding: 'utf-8',
           maxBuffer: this.maxFileSizeBytes,
         });
-        const paragraphs = xml.match(/<w:p\b[^>]*>.*?<\/w:p>/gs) || [xml];
-        lines = paragraphs
-          .map((p) => {
-            const textMatches = p.match(/<w:t\b[^>]*>([^<]*)<\/w:t>/g);
-            if (!textMatches) return '';
-            return textMatches
-              .map((t) => t.replace(/<[^>]+>/g, ''))
-              .join('')
-              .trim();
-          })
-          .filter(Boolean);
+
+        const extractedLines: string[] = [];
+
+        // 1. Extract table rows (<w:tr>) first to capture tabular specifications and key-value matrices
+        const tableRows = xml.match(/<w:tr\b[^>]*>.*?<\/w:tr>/gs) || [];
+        for (const tr of tableRows) {
+          const cells = tr.match(/<w:tc\b[^>]*>.*?<\/w:tc>/gs) || [];
+          const cellTexts = cells
+            .map((cell) => {
+              const tMatches = cell.match(/<w:t\b[^>]*>([^<]*)<\/w:t>/g) || [];
+              return tMatches
+                .map((t) => t.replace(/<[^>]+>/g, ''))
+                .join('')
+                .trim();
+            })
+            .filter(Boolean);
+
+          if (cellTexts.length >= 2) {
+            extractedLines.push(`- ${cellTexts[0]}: ${cellTexts.slice(1).join(' ')}`);
+          } else if (cellTexts.length === 1) {
+            extractedLines.push(cellTexts[0]);
+          }
+        }
+
+        // 2. Extract regular paragraphs outside tables
+        const xmlWithoutTables = xml.replace(/<w:tbl\b[^>]*>.*?<\/w:tbl>/gs, '');
+        const paragraphs = xmlWithoutTables.match(/<w:p\b[^>]*>.*?<\/w:p>/gs) || [];
+        for (const p of paragraphs) {
+          const textMatches = p.match(/<w:t\b[^>]*>([^<]*)<\/w:t>/g);
+          if (!textMatches) continue;
+          const text = textMatches
+            .map((t) => t.replace(/<[^>]+>/g, ''))
+            .join('')
+            .trim();
+          if (text) {
+            extractedLines.push(text);
+          }
+        }
+
+        // De-duplicate contiguous identical lines
+        lines = extractedLines.filter((l, idx) => idx === 0 || l !== extractedLines[idx - 1]);
         content = lines.join('\n');
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -622,7 +652,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       if (headingMatch) {
         const rawHeading = headingMatch[2].trim();
         const genericSections =
-          /^(overview|introduction|getting started|summary|table of contents|notes|appendix|prerequisites|requirements|technology stack|service configuration|monitoring|security|hardware requirements)/i;
+          /^(overview|introduction|getting started|summary|table of contents|notes|appendix|prerequisites|requirements|runtime requirements|deployment profile|deployment requirements|technology stack|service configuration|configuration|specifications|specs|monitoring|security|hardware requirements)/i;
         if (!genericSections.test(rawHeading)) {
           let s = rawHeading
             .toLowerCase()
@@ -647,6 +677,18 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         const rawK = directMatch[1].trim();
         const rawV = directMatch[2].trim();
         if (rawK && rawV && !rawK.startsWith('#') && !rawK.includes('---')) {
+          const lowerK = rawK.toLowerCase();
+          if (
+            lowerK === 'specification' ||
+            lowerK === 'property' ||
+            lowerK === 'setting' ||
+            lowerK === 'key' ||
+            lowerK === 'parameter' ||
+            lowerK === 'attribute'
+          ) {
+            continue;
+          }
+
           key = rawK.toLowerCase().replace(/[^a-z0-9_]/g, '_');
           val = rawV.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
 

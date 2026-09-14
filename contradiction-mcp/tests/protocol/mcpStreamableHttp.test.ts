@@ -75,15 +75,14 @@ describe('MCP Streamable HTTP Protocol Suite', () => {
     await client.connect(clientTransport);
 
     const tools = await client.listTools();
-    expect(tools.tools.length).toBeGreaterThanOrEqual(21);
+    expect(tools.tools.length).toBe(12);
 
     const toolNames = tools.tools.map((t) => t.name);
-    expect(toolNames).toContain('health_check');
+    expect(toolNames).toContain('check_health');
     expect(toolNames).toContain('analyze_claim_pair');
-    expect(toolNames).toContain('scan_for_contradictions');
+    expect(toolNames).toContain('scan_contradictions');
     expect(toolNames).toContain('list_contradictions');
-    expect(toolNames).toContain('sync_document');
-    expect(toolNames).toContain('sync_github_repository');
+    expect(toolNames).toContain('sync_source');
     expect(toolNames).toContain('resolve_contradiction');
 
     await client.close();
@@ -186,7 +185,7 @@ describe('MCP Streamable HTTP Protocol Suite', () => {
       await authClient.connect(authClientTransport);
 
       const tools = await authClient.listTools();
-      expect(tools.tools.length).toBeGreaterThanOrEqual(21);
+      expect(tools.tools.length).toBe(12);
 
       await authClient.close();
     } finally {

@@ -647,7 +647,7 @@ describe('Context-Aware Contradiction Engine & False-Positive Elimination', () =
 
     const toolsRes = await client.listTools();
     const toolNames = toolsRes.tools.map((t) => t.name);
-    expect(toolNames).toContain('explain_claim_relationship');
+    expect(toolNames).toContain('analyze_claim_pair');
 
     const callRes = await client.callTool({
       name: 'explain_claim_relationship',

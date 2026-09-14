@@ -95,8 +95,8 @@ async function runSuite() {
     record(
       '4',
       'Stdio tools/list',
-      stdioTools.tools.length === 21,
-      `Found ${stdioTools.tools.length}/21 tools`,
+      stdioTools.tools.length === 12,
+      `Found ${stdioTools.tools.length}/12 tools`,
     );
 
     const stdioResources = await stdioClient.listResources();
@@ -261,8 +261,8 @@ async function runSuite() {
     record(
       '4',
       'Streamable HTTP tools/list',
-      httpTools.tools.length === 21,
-      `Found ${httpTools.tools.length}/21 tools over HTTP`,
+      httpTools.tools.length === 12,
+      `Found ${httpTools.tools.length}/12 tools over HTTP`,
     );
 
     const httpResources = await httpClient.listResources();

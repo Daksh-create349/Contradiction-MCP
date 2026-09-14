@@ -1,0 +1,11 @@
+{
+  "service_name": "UserAuthService",
+  "node_version": "20.11.0",
+  "min_ram": "16GB",
+  "http_port": 8080,
+  "database_engine": "PostgreSQL 15",
+  "timeout_ms": 30000,
+  "max_connections": 10000,
+  "jwt_expiry_seconds": 900,
+  "tls_enabled": true
+}
