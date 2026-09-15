@@ -211,11 +211,15 @@ export class ContradictionEngine {
       claimA.valueType === claimB.valueType
         ? claimA.valueType
         : claimA.valueType &&
-            ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(claimA.valueType) &&
+            ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(
+              claimA.valueType,
+            ) &&
             (!claimB.valueType || ['configuration', 'string'].includes(claimB.valueType))
           ? claimA.valueType
           : claimB.valueType &&
-              ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(claimB.valueType) &&
+              ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(
+                claimB.valueType,
+              ) &&
               (!claimA.valueType || ['configuration', 'string'].includes(claimA.valueType))
             ? claimB.valueType
             : claimA.predicate.includes('version') && claimB.predicate.includes('version')

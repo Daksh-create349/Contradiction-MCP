@@ -78,7 +78,8 @@ export function isIpOrNetworkAddress(val: string): boolean {
   // IPv4, IPv4:port, or IPv4 CIDR
   if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?(?:\/\d+)?$/.test(s)) return true;
   // IPv6 or localhost
-  if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return true;
+  if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost')
+    return true;
   return false;
 }
 

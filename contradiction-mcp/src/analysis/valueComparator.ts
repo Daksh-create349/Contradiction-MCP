@@ -80,7 +80,8 @@ export class ValueComparator {
     if (/^\d+$/.test(s)) return false;
     // IP addresses and network endpoints are network addresses, never versions
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?(?:\/\d+)?$/.test(s)) return false;
-    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return false;
+    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost')
+      return false;
 
     return (
       (/\bv?\d+(\.\d+)+\b/i.test(s) && /(version|node|v\d|\d+\.\d+|[><=~^])/i.test(s)) ||
@@ -104,7 +105,8 @@ export class ValueComparator {
   public normalizeVersion(val: string): { canonical: string; segments: number[] } | null {
     const s = val.trim();
     if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(s)) return null;
-    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return null;
+    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost')
+      return null;
 
     // Extract semver-like sequence (e.g., "Node 22" -> "22", "v20.10.0" -> "20.10.0")
     const match = val.match(/\b(?:v|version)?\s*(\d+(?:\.\d+)*)\b/i);

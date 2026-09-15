@@ -639,9 +639,6 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     const directKvPattern =
       /^\s*(?:[-*+]|\d+\.)?\s*(?:\*{1,2}|`|__)?([a-zA-Z0-9_\s.-]{2,50}?)(?:\*{1,2}|`|__)?\s*[:=]\s*(?:\*{1,2}|`|__)?([^\r\n#]{1,160}?)(?:\*{1,2}|`|__)?(?:\s+#.*)?$/;
 
-    // Markdown table row pattern
-    const tablePattern = /^\s*\|\s*([^|:\r\n]{2,50}?)\s*\|\s*([^|\r\n]{1,160}?)\s*\|/;
-
     let currentSection: string | null = null;
     let currentTableHeaders: string[] | null = null;
 

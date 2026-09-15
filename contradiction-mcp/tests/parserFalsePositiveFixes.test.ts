@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { DocumentConnector } from '../src/connectors/document/documentConnector.js';
-import { inferClaimValueType, isIpOrNetworkAddress } from '../src/connectors/base/connectorUtils.js';
+import {
+  inferClaimValueType,
+  isIpOrNetworkAddress,
+} from '../src/connectors/base/connectorUtils.js';
 import { ValueComparator } from '../src/analysis/valueComparator.js';
 import { ClaimMatcher, areOrthogonalPredicates } from '../src/analysis/claimMatcher.js';
 import { ContradictionEngine } from '../src/analysis/contradictionEngine.js';
@@ -224,8 +227,12 @@ describe('Parser Heuristics & False-Positive Elimination Tests', () => {
       const fetchResult = await connector.fetch({ filePath: mdPath });
       const claims = await connector.extractClaims(fetchResult);
 
-      const passingBadge = claims.find((c) => c.predicate === 'build_status' && c.value === 'passing');
-      const failingBadge = claims.find((c) => c.predicate === 'build_status' && c.value === 'failing');
+      const passingBadge = claims.find(
+        (c) => c.predicate === 'build_status' && c.value === 'passing',
+      );
+      const failingBadge = claims.find(
+        (c) => c.predicate === 'build_status' && c.value === 'failing',
+      );
 
       expect(passingBadge).toBeDefined();
       expect(failingBadge).toBeDefined();
