@@ -73,6 +73,15 @@ export function hashContent(content: string): string {
   return crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
 }
 
+export function isIpOrNetworkAddress(val: string): boolean {
+  const s = (val || '').trim();
+  // IPv4, IPv4:port, or IPv4 CIDR
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?(?:\/\d+)?$/.test(s)) return true;
+  // IPv6 or localhost
+  if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return true;
+  return false;
+}
+
 /**
  * Heuristically infers the most accurate ClaimValueType from predicate and value
  * (e.g. quantity, version, price, date, status, etc.).
@@ -81,14 +90,41 @@ export function inferClaimValueType(predicate: string, value: string): ClaimValu
   const pred = (predicate || '').toLowerCase().trim();
   const val = (value || '').toLowerCase().trim();
 
+  // 0. Address / Network / Host
+  if (
+    isIpOrNetworkAddress(val) ||
+    pred.includes('host') ||
+    pred.includes('ip_address') ||
+    pred.includes('bind_address') ||
+    pred.includes('hostname') ||
+    pred === 'ip' ||
+    pred === 'address' ||
+    pred.endsWith('_host') ||
+    pred.endsWith('_ip')
+  ) {
+    return 'address';
+  }
+
   // 1. Version
   if (
-    pred.includes('version') ||
-    pred.includes('release') ||
-    pred.includes('semver') ||
-    /^\^?~?[v=]?\d+\.\d+(?:\.\d+)*(?:-\w+)?$/.test(val) ||
-    /^v\d+(?:\.\d+)*(?:-\w+)?$/i.test(val) ||
-    /^(?:>=|<=|>|<|=)\s*\d+/i.test(val)
+    !isIpOrNetworkAddress(val) &&
+    (pred.includes('version') ||
+      pred.includes('release') ||
+      pred.includes('semver') ||
+      /^v\d+(?:\.\d+)*(?:-\w+)?$/i.test(val) ||
+      /^(?:>=|<=|>|<|=)\s*\d+/i.test(val) ||
+      (/^\^?~?[v=]?\d+\.\d+(?:\.\d+)*(?:-\w+)?$/.test(val) &&
+        (pred.includes('node') ||
+          pred.includes('python') ||
+          pred.includes('ruby') ||
+          pred.includes('go') ||
+          pred.includes('java') ||
+          pred.includes('runtime') ||
+          pred.includes('ver') ||
+          val.startsWith('^') ||
+          val.startsWith('~') ||
+          val.startsWith('v') ||
+          val.startsWith('='))))
   ) {
     return 'version';
   }

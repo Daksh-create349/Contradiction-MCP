@@ -643,6 +643,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     const tablePattern = /^\s*\|\s*([^|:\r\n]{2,50}?)\s*\|\s*([^|\r\n]{1,160}?)\s*\|/;
 
     let currentSection: string | null = null;
+    let currentTableHeaders: string[] | null = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -670,6 +671,71 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       let key: string | null = null;
       let val: string | null = null;
       let method = 'markdown_pattern';
+
+      // 0. Check markdown badges (e.g. build: passing vs failing)
+      const badgeMatches = line.matchAll(
+        /!\[([^\]]*)\]\((https?:\/\/[^\s)]*(?:shields\.io\/badge\/|github\.com\/[^\s)]*\/badge\.svg|[a-z0-9_-]+-badge)[^\s)]*)\)/gi,
+      );
+      for (const bMatch of badgeMatches) {
+        const alt = (bMatch[1] || '').trim();
+        const url = (bMatch[2] || '').trim();
+
+        let badgeSubject = 'build';
+        let badgeStatus: string | null = null;
+
+        const shieldsMatch = url.match(/shields\.io\/badge\/([^?#]+)/i);
+        if (shieldsMatch) {
+          const decoded = decodeURIComponent(shieldsMatch[1]);
+          const parts = decoded.split('-');
+          if (parts.length >= 2) {
+            badgeSubject = parts[0].toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            badgeStatus = parts[1].toLowerCase();
+          }
+        } else if (/badge\.svg/i.test(url)) {
+          if (/passing|success/i.test(url) || /passing|success/i.test(alt)) {
+            badgeStatus = 'passing';
+          } else if (/failing|failed|error/i.test(url) || /failing|failed|error/i.test(alt)) {
+            badgeStatus = 'failing';
+          }
+        }
+
+        if (alt && !badgeStatus) {
+          const altParts = alt.split(/[:\s-]+/);
+          if (altParts.length >= 2) {
+            badgeSubject = altParts[0].toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            badgeStatus = altParts[1].toLowerCase();
+          }
+        }
+
+        if (badgeStatus) {
+          const badgeKey = `${badgeSubject}_status`;
+          let finalKey = badgeKey;
+          if (currentSection && !badgeKey.startsWith(currentSection)) {
+            finalKey = `${currentSection}_${badgeKey}`;
+          }
+          const externalId = createClaimExternalId('document', filePath, finalKey, String(i + 1));
+          claims.push({
+            subject: subjectBase,
+            predicate: finalKey,
+            value: badgeStatus,
+            valueType: 'status',
+            environment: env,
+            scope,
+            sourceRole,
+            isHistorical: false,
+            observedAt,
+            externalId,
+            provenance: {
+              connector: 'document',
+              filePath,
+              lineRange: [i + 1, i + 1],
+              extractionMethod: 'markdown_badge',
+              observedAt: observedAt.toISOString(),
+              evidence: line.trim(),
+            },
+          });
+        }
+      }
 
       // 1. Check direct KV (bold labels, lists, etc.)
       const directMatch = directKvPattern.exec(line);
@@ -702,21 +768,119 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       }
 
       // 2. Check markdown table row
-      if (!key) {
-        const tableMatch = tablePattern.exec(line);
-        if (tableMatch && !tableMatch[1].includes('---') && !tableMatch[2].includes('---')) {
-          const rawK = tableMatch[1].trim();
-          const rawV = tableMatch[2].trim();
-          if (
-            rawK.toLowerCase() !== 'property' &&
-            rawK.toLowerCase() !== 'setting' &&
-            rawK.toLowerCase() !== 'key'
-          ) {
-            key = rawK.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-            val = rawV.replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
-            method = 'markdown_table';
-          }
+      const isTableRow = /^\s*\|.*\|\s*$/.test(line);
+      const isDelimiter = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
+
+      if (isDelimiter) {
+        continue;
+      }
+
+      if (isTableRow && !key) {
+        // Check if next line is a delimiter: if so, current line is the table header row!
+        if (
+          i + 1 < lines.length &&
+          /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(lines[i + 1])
+        ) {
+          let trimmed = line.trim();
+          if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+          if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+          currentTableHeaders = trimmed.split('|').map((h) =>
+            h
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9_]/g, '_')
+              .replace(/_+/g, '_')
+              .replace(/^_|_$/g, ''),
+          );
+          continue; // Skip emitting claim for the header row!
         }
+
+        let trimmed = line.trim();
+        if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+        if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+        const cells = trimmed.split('|').map((c) => c.trim());
+
+        const tableBlacklist = new Set([
+          'property',
+          'setting',
+          'key',
+          'parameter',
+          'attribute',
+          'specification',
+          'requirement',
+          'requirements',
+          'component',
+          'minimum',
+          'recommended',
+          'default',
+          'description',
+          'notes',
+          'feature',
+          'variable',
+          'option',
+          'name',
+          'field',
+          'spec',
+        ]);
+
+        const rawK = cells[0]
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '');
+
+        if (cells.length >= 2 && !tableBlacklist.has(rawK) && !cells[0].includes('---')) {
+          // If multi-column table with headers
+          if (currentTableHeaders && currentTableHeaders.length > 2 && cells.length > 2) {
+            for (let cIdx = 1; cIdx < cells.length; cIdx++) {
+              const rawCol = currentTableHeaders[cIdx] || `col_${cIdx}`;
+              const colClean = rawCol.replace(/_+/g, '_');
+              const cellVal = cells[cIdx].replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
+              if (cellVal && cellVal !== '-' && !cellVal.includes('---')) {
+                const compositeKey = `${rawK}_${colClean}`;
+                let finalKey = compositeKey;
+                if (currentSection && !compositeKey.startsWith(currentSection)) {
+                  finalKey = `${currentSection}_${compositeKey}`;
+                }
+                const externalId = createClaimExternalId(
+                  'document',
+                  filePath,
+                  finalKey,
+                  String(i + 1),
+                );
+                const valueType = inferClaimValueType(finalKey, cellVal);
+                claims.push({
+                  subject: subjectBase,
+                  predicate: finalKey,
+                  value: cellVal,
+                  valueType,
+                  environment: env,
+                  scope,
+                  sourceRole,
+                  isHistorical: false,
+                  observedAt,
+                  externalId,
+                  provenance: {
+                    connector: 'document',
+                    filePath,
+                    lineRange: [i + 1, i + 1],
+                    extractionMethod: 'markdown_table',
+                    observedAt: observedAt.toISOString(),
+                    evidence: line.trim(),
+                  },
+                });
+              }
+            }
+            continue;
+          }
+
+          // Standard 2-column table row
+          key = rawK;
+          val = cells[1].replace(/^[*`_"'\s]+|[*`_"'\s]+$/g, '').trim();
+          method = 'markdown_table';
+        }
+      } else if (!isTableRow) {
+        currentTableHeaders = null;
       }
 
       // 3. Check prose assertion heuristics
@@ -776,6 +940,44 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
                       key = 'max_users';
                       val = proseCapacityMatch[1].trim();
                       method = 'prose_heuristic';
+                    } else {
+                      const proseLicenseMatch = line.match(
+                        /(?:licensed?\s+under|license:?)\s*(?:the\s+)?(MIT|Apache(?:-2\.0)?|BSD|GPL|ISC|Proprietary)\b/i,
+                      );
+                      if (proseLicenseMatch) {
+                        key = 'license';
+                        val = proseLicenseMatch[1].trim();
+                        method = 'prose_heuristic';
+                      } else {
+                        const proseCommercialMatch = line.match(
+                          /(?:commercial\s+use\s+(?:is\s+)?(strictly\s+prohibited|forbidden|prohibited|not\s+allowed|allowed|permitted))/i,
+                        );
+                        if (proseCommercialMatch) {
+                          key = 'commercial_use';
+                          val = /prohibited|forbidden|not/i.test(proseCommercialMatch[1])
+                            ? 'prohibited'
+                            : 'allowed';
+                          method = 'prose_heuristic';
+                        } else {
+                          const proseZeroConfigMatch = line.match(
+                            /\b(zero[- ]configuration|no\s+configuration\s+required)\b/i,
+                          );
+                          if (proseZeroConfigMatch) {
+                            key = 'configuration_required';
+                            val = 'false';
+                            method = 'prose_heuristic';
+                          } else {
+                            const proseReqConfigMatch = line.match(
+                              /requires\s+(\d+)\s+(?:yaml|configuration|config)\s+files/i,
+                            );
+                            if (proseReqConfigMatch) {
+                              key = 'configuration_files_count';
+                              val = proseReqConfigMatch[1].trim();
+                              method = 'prose_heuristic';
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }

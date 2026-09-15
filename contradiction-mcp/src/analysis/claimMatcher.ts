@@ -137,7 +137,51 @@ const PREDICATE_SYNONYM_GROUPS: Array<Set<string>> = [
   new Set(['python_version', 'python', 'python_ver', 'runtime_python_version']),
   new Set(['memory', 'ram', 'min_ram', 'minimum_ram', 'min_memory', 'memory_limit']),
   new Set(['cpu', 'cores', 'min_cpu', 'cpu_cores']),
+  new Set(['host', 'hostname', 'bind_host', 'bind_address', 'server_host', 'ip', 'ip_address']),
+  new Set(['ssl_enabled', 'tls_enabled', 'enable_ssl', 'disable_ssl', 'ssl', 'tls']),
+  new Set(['log_level', 'logging_level', 'level']),
 ];
+
+export const ORTHOGONAL_PREDICATE_PAIRS: Array<[Set<string>, Set<string>]> = [
+  // Host / IP vs Port
+  [
+    new Set(['host', 'hostname', 'bind_host', 'bind_address', 'ip', 'ip_address', 'server_host']),
+    new Set(['port', 'listen_port', 'server_port', 'http_port', 'service_port']),
+  ],
+  // Min vs Max
+  [
+    new Set(['min_memory', 'min_ram', 'minimum_ram', 'min_cpu', 'min_connections']),
+    new Set(['max_memory', 'max_ram', 'memory_limit', 'max_cpu', 'max_connections', 'max_users']),
+  ],
+  // User vs Password / Secret
+  [
+    new Set(['user', 'username', 'db_user', 'db_username']),
+    new Set(['pass', 'password', 'db_password', 'secret', 'token']),
+  ],
+];
+
+export function areOrthogonalPredicates(predA: string, predB: string): boolean {
+  const a = predA.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const b = predB.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const strippedA = stripWrapperPrefix(a);
+  const strippedB = stripWrapperPrefix(b);
+
+  const tokensA = a.split('_').filter(Boolean);
+  const tokensB = b.split('_').filter(Boolean);
+  const leafA = tokensA[tokensA.length - 1] || a;
+  const leafB = tokensB[tokensB.length - 1] || b;
+
+  for (const [set1, set2] of ORTHOGONAL_PREDICATE_PAIRS) {
+    const aInSet1 = set1.has(a) || set1.has(strippedA) || set1.has(leafA);
+    const bInSet2 = set2.has(b) || set2.has(strippedB) || set2.has(leafB);
+    if (aInSet1 && bInSet2) return true;
+
+    const aInSet2 = set2.has(a) || set2.has(strippedA) || set2.has(leafA);
+    const bInSet1 = set1.has(b) || set1.has(strippedB) || set1.has(leafB);
+    if (aInSet2 && bInSet1) return true;
+  }
+  return false;
+}
 
 export function stripWrapperPrefix(pred: string): string {
   const norm = pred.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -295,6 +339,19 @@ export class ClaimMatcher {
     const leafA = tokensA[tokensA.length - 1] || normPredA;
     const leafB = tokensB[tokensB.length - 1] || normPredB;
 
+    if (areOrthogonalPredicates(claimA.predicate, claimB.predicate)) {
+      return {
+        matches: false,
+        subjectSimilarity,
+        predicateSimilarity: 0,
+        normalizedSubjectA: normSubA,
+        normalizedSubjectB: normSubB,
+        normalizedPredicateA: normPredA,
+        normalizedPredicateB: normPredB,
+        reason: `Predicates '${normPredA}' and '${normPredB}' represent orthogonal, non-conflicting system properties`,
+      };
+    }
+
     const isSynonym = arePredicateSynonyms(claimA.predicate, claimB.predicate);
 
     let predicateSimilarity = calculateCompositeSimilarity(claimA.predicate, claimB.predicate);
@@ -302,12 +359,28 @@ export class ClaimMatcher {
     // Guard against cross-subsystem false matches where two predicates share only
     // a generic leaf (e.g. 'port', 'version') but have different subsystem prefixes
     // (e.g. 'api_gateway_port' vs 'cache_port', 'node_version' vs 'cache_version').
+    let isGuardedDifferentProperty = false;
     if (!isSynonym) {
       const prefixA = tokensA.slice(0, -1).join(' ');
       const prefixB = tokensB.slice(0, -1).join(' ');
 
       if (prefixA && prefixB && prefixA !== prefixB && leafA === leafB) {
         predicateSimilarity = 0;
+        isGuardedDifferentProperty = true;
+      }
+
+      // Guard against shared-prefix false matches where two predicates share a common
+      // namespace/section prefix (e.g. 'section_config_host' vs 'section_config_port')
+      // but assert completely different leaf properties.
+      const isLeafSynonym = arePredicateSynonyms(leafA, leafB);
+      if (leafA !== leafB && !isLeafSynonym) {
+        if (tokensA.length > 1 || tokensB.length > 1) {
+          const leafSim = calculateCompositeSimilarity(leafA, leafB);
+          if (leafSim < this.predicateThreshold) {
+            predicateSimilarity = 0;
+            isGuardedDifferentProperty = true;
+          }
+        }
       }
     }
 
@@ -315,7 +388,11 @@ export class ClaimMatcher {
     if (isSynonym) {
       predicateSimilarity = Math.max(predicateSimilarity, 0.95);
       matchDetail = ' (matched via predicate synonym dictionary)';
-    } else if (predicateSimilarity < this.predicateThreshold && this.semanticMatcher.isEnabled()) {
+    } else if (
+      !isGuardedDifferentProperty &&
+      predicateSimilarity < this.predicateThreshold &&
+      this.semanticMatcher.isEnabled()
+    ) {
       const semRes = this.semanticMatcher.match(normPredA, normPredB);
       if (semRes.matched) {
         predicateSimilarity = Math.max(predicateSimilarity, semRes.confidence);

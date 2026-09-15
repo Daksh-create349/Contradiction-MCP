@@ -163,15 +163,62 @@ export class ContradictionEngine {
       };
     }
 
-    // 4. Value comparison
+    // 4. Value type compatibility check
+    const genericTypes = new Set(['configuration', 'string', 'requirement', 'policy', '']);
+    const typeA = (claimA.valueType || '').toLowerCase();
+    const typeB = (claimB.valueType || '').toLowerCase();
+    const hasIncompatibleTypes =
+      typeA &&
+      typeB &&
+      typeA !== typeB &&
+      !genericTypes.has(typeA) &&
+      !genericTypes.has(typeB) &&
+      (typeA === 'address' ||
+        typeB === 'address' ||
+        (typeA === 'status' && typeB === 'version') ||
+        (typeA === 'version' && typeB === 'status') ||
+        (typeA === 'date' && typeB === 'quantity') ||
+        (typeA === 'quantity' && typeB === 'date'));
+
+    if (hasIncompatibleTypes) {
+      const fallbackComp = valueComparator.compare(claimA.value, claimB.value, 'string');
+      return {
+        isContradiction: false,
+        analysisStatus: 'NOT_A_CONTRADICTION',
+        relationship: {
+          type: 'UNKNOWN',
+          confidence: 0.0,
+          explanation: `Claims assert incompatible semantic value types ('${claimA.valueType}' vs '${claimB.valueType}').`,
+          isContradictionEligible: false,
+          contextFactors: contextResult.relationship.contextFactors,
+        },
+        contradictionType: 'UNKNOWN',
+        severity: 'LOW',
+        confidence: 0.0,
+        explanation: `Claims assert incompatible semantic value types ('${claimA.valueType}' vs '${claimB.valueType}').`,
+        evidence: {
+          claimA,
+          claimB,
+          match,
+          comparison: fallbackComp,
+          context: contextResult,
+        },
+      };
+    }
+
+    // 5. Value comparison
     const resolvedValueType =
       claimA.valueType === claimB.valueType
         ? claimA.valueType
-        : claimA.valueType && !['configuration', 'string'].includes(claimA.valueType)
+        : claimA.valueType &&
+            ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(claimA.valueType) &&
+            (!claimB.valueType || ['configuration', 'string'].includes(claimB.valueType))
           ? claimA.valueType
-          : claimB.valueType && !['configuration', 'string'].includes(claimB.valueType)
+          : claimB.valueType &&
+              ['version', 'quantity', 'date', 'price', 'status', 'address'].includes(claimB.valueType) &&
+              (!claimA.valueType || ['configuration', 'string'].includes(claimA.valueType))
             ? claimB.valueType
-            : claimA.predicate.includes('version') || claimB.predicate.includes('version')
+            : claimA.predicate.includes('version') && claimB.predicate.includes('version')
               ? 'version'
               : undefined;
     const comparison = valueComparator.compare(claimA.value, claimB.value, resolvedValueType);

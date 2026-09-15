@@ -78,6 +78,9 @@ export class ValueComparator {
     const s = str.trim();
     // Bare integers without dots or version operators are numbers/quantities, not versions
     if (/^\d+$/.test(s)) return false;
+    // IP addresses and network endpoints are network addresses, never versions
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?(?:\/\d+)?$/.test(s)) return false;
+    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return false;
 
     return (
       (/\bv?\d+(\.\d+)+\b/i.test(s) && /(version|node|v\d|\d+\.\d+|[><=~^])/i.test(s)) ||
@@ -87,7 +90,9 @@ export class ValueComparator {
   }
 
   public cleanSemverRange(val: string): string | null {
-    const cleaned = val
+    const s = val.trim();
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(s)) return null;
+    const cleaned = s
       .replace(/^(?:requires?|prerequisites?|node(?:\.js)?|version|v)?\s*[:=]?\s*/i, '')
       .trim();
     if (semver.validRange(cleaned)) {
@@ -97,12 +102,17 @@ export class ValueComparator {
   }
 
   public normalizeVersion(val: string): { canonical: string; segments: number[] } | null {
+    const s = val.trim();
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(s)) return null;
+    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s) || /^::1$/.test(s) || s === 'localhost') return null;
+
     // Extract semver-like sequence (e.g., "Node 22" -> "22", "v20.10.0" -> "20.10.0")
     const match = val.match(/\b(?:v|version)?\s*(\d+(?:\.\d+)*)\b/i);
     if (!match) return null;
 
     const versionStr = match[1];
     const segments = versionStr.split('.').map(Number);
+    if (segments.length > 3) return null;
     return {
       canonical: segments.join('.'),
       segments,
@@ -193,7 +203,7 @@ export class ValueComparator {
 
     // 3. Fallback to exact / segment version comparison
     if (!parsedA || !parsedB) {
-      return this.compareStrings(a, b, 'version');
+      return this.compareStrings(a, b, 'string');
     }
 
     const equal = parsedA.canonical === parsedB.canonical;

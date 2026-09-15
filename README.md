@@ -9,7 +9,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white&style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![MCP Specification](https://img.shields.io/badge/MCP-2.0.0-8A2BE2.svg?logo=anthropic&logoColor=white&style=flat-square)](https://modelcontextprotocol.io/)
-[![Vitest Tests](https://img.shields.io/badge/Tests-181%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
+[![Vitest Tests](https://img.shields.io/badge/Tests-191%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 [![Glama Score](https://img.shields.io/badge/Glama%20Score-100%2F100-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
@@ -67,7 +67,10 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
   - **Environments**: `production` vs `staging` vs `development`
   - **Scopes**: `file` vs `deployment` vs `cluster`
   - **Roles**: `source_of_truth` vs `deployment` vs `documentation`
-- **Deterministic SemVer Mathematics**: Employs rigorous version range satisfaction algebra rather than naive string comparisons.
+- **Deterministic SemVer Mathematics & Value Type Isolation**: Employs rigorous version range satisfaction algebra rather than naive string comparisons. Strict IPv4/IPv6/host type discrimination ensures IP addresses (e.g. `127.0.0.1`) are never misclassified as SemVer versions or compared against ports.
+- **Namespace-Aware Leaf Predicate Matching**: Protects against heading-level false positives. Parameters under shared Markdown headings (e.g. `2_configuration_quantum_config_yaml_host` vs `2_configuration_quantum_config_yaml_port`) are discriminated by leaf property semantics so unrelated parameters never falsely match.
+- **Multi-Column Matrix & Header Delimiter Parsing**: Markdown tables automatically skip table header rows and delimiter rows, cleanly extracting multi-column tables into composite property claims (e.g. `python_minimum: 3.12+`, `python_recommended: 3.13`).
+- **Visual CI Badge Contradiction Detection**: Parses Markdown Shields.io and GitHub Action status badges to uncover visual discrepancies (e.g. conflicting `build_status: passing` vs `build_status: failing` badges).
 - **Multi-Source Ingestion Pipeline**:
   - **GitHub Connector**: Analyzes runtime engines, Dockerfiles, GitHub Actions workflows, and READMEs.
   - **Document Connector**: Extracts structured claims from JSON, YAML, Markdown, CSV, TXT, RFC822 (`.eml`), and OpenXML (`.docx`) documents with exact page- and line-numbered evidence citations.
