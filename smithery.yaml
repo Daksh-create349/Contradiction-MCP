@@ -1,0 +1,23 @@
+# Smithery configuration for Contradiction MCP
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      githubToken:
+        type: string
+        title: "GitHub Personal Access Token"
+        description: "Optional GitHub token for syncing private repositories or avoiding API rate limits"
+      databasePath:
+        type: string
+        title: "Database Path"
+        description: "Path to SQLite database file (default: ./data/contradiction.db)"
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'contradiction-mcp'],
+      env: {
+        ...(config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}),
+        ...(config.databasePath ? { DATABASE_PATH: config.databasePath } : {})
+      }
+    })
