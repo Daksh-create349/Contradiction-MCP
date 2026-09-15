@@ -43,7 +43,9 @@ export type ClaimScope = (typeof StandardClaimScopes)[number] | (string & {});
 
 export const StandardClaimSourceRoles = [
   'authoritative',
+  'deployment',
   'configuration',
+  'specification',
   'documentation',
   'example',
   'historical',

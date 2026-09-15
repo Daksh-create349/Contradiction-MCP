@@ -396,11 +396,13 @@ export class ValueComparator {
   // --- NUMBER / QUANTITY COMPARISON ---
 
   private isLikelyNumber(str: string): boolean {
-    return /^[-+]?\d+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|ms|s|sec|m|min|h|hr|hours)?$/i.test(str.trim());
+    return /^[-+]?[\d,]+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|ms|s|sec|m|min|h|hr|hours)?$/i.test(
+      str.trim(),
+    );
   }
 
   public normalizeQuantity(val: string): { amount: number; unit?: string; display: string } | null {
-    const trimmed = val.trim().toLowerCase();
+    const trimmed = val.trim().replace(/,/g, '').toLowerCase();
     const match = trimmed.match(/^([-+]?\d+(?:\.\d+)?)\s*([a-z]*)$/i);
     if (!match) return null;
 
@@ -462,8 +464,8 @@ export class ValueComparator {
       };
     }
 
-    const numA = parseFloat(a.trim());
-    const numB = parseFloat(b.trim());
+    const numA = parseFloat(a.trim().replace(/,/g, ''));
+    const numB = parseFloat(b.trim().replace(/,/g, ''));
 
     if (isNaN(numA) || isNaN(numB)) {
       return this.compareStrings(a, b, valueType);

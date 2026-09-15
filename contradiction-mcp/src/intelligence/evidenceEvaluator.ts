@@ -18,11 +18,19 @@ export class EvidenceEvaluator {
     let score = 0.4;
 
     const metadata = claim.metadata || {};
-    const snippet = typeof metadata.snippet === 'string' ? metadata.snippet.trim() : '';
+    const snippet =
+      typeof metadata.snippet === 'string'
+        ? metadata.snippet.trim()
+        : typeof metadata.evidence === 'string'
+          ? metadata.evidence.trim()
+          : '';
     const hasSnippet = snippet.length > 0;
+    const lineRange = Array.isArray(metadata.lineRange) ? (metadata.lineRange as unknown[]) : null;
+    const hasLineRange = lineRange !== null && lineRange.length > 0;
     const hasLine =
       metadata.line !== undefined ||
-      (metadata.startLine !== undefined && metadata.endLine !== undefined);
+      (metadata.startLine !== undefined && metadata.endLine !== undefined) ||
+      hasLineRange;
 
     const extractionMethod =
       typeof metadata.extractionMethod === 'string' ? metadata.extractionMethod : 'heuristic';
@@ -32,7 +40,11 @@ export class EvidenceEvaluator {
       const lineStr =
         metadata.line !== undefined
           ? `line ${metadata.line}`
-          : `lines ${metadata.startLine}-${metadata.endLine}`;
+          : lineRange
+            ? lineRange[0] === lineRange[1]
+              ? `line ${String(lineRange[0])}`
+              : `lines ${String(lineRange[0])}-${String(lineRange[1])}`
+            : `lines ${metadata.startLine}-${metadata.endLine}`;
       reasons.push(`Claim verified with exact line provenance: ${lineStr}`);
     } else {
       reasons.push('Claim lacks exact line number citation');

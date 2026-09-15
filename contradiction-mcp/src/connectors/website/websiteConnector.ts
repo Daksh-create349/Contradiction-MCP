@@ -96,9 +96,13 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
     }
   }
 
-  public async fetch(input: WebsiteInput): Promise<FetchResult<WebsiteRawData>> {
+  public async fetch(input: WebsiteInput, redirectCount = 0): Promise<FetchResult<WebsiteRawData>> {
     if (!input || !input.url) {
       throw new ValidationError('URL parameter is required for website connector');
+    }
+
+    if (redirectCount >= 5) {
+      throw new ValidationError('Maximum redirect limit exceeded (5 redirects allowed)');
     }
 
     // SSRF verification
@@ -136,8 +140,8 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
         });
         await validateSafeUrl(redirectUrl);
 
-        // Fetch redirected resource
-        return this.fetch({ ...input, url: redirectUrl });
+        // Fetch redirected resource with incremented redirect count
+        return this.fetch({ ...input, url: redirectUrl }, redirectCount + 1);
       }
 
       if (!response.ok) {

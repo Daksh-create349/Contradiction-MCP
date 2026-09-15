@@ -132,13 +132,20 @@ export class ContextAnalyzer {
     const envA = normalizeEnvironment(claimA.environment);
     const envB = normalizeEnvironment(claimB.environment);
 
+    const isProdOrDeploy = (e: string) => e === 'production' || e === 'deployment';
+    const concreteRuntimeEnvs = [
+      'development',
+      'staging',
+      'testing',
+      'production',
+      'deployment',
+      'ci',
+    ];
     const isEnvDisjoint =
-      (envA === 'development' && (envB === 'production' || envB === 'deployment')) ||
-      (envB === 'development' && (envA === 'production' || envA === 'deployment')) ||
-      (envA === 'staging' && envB === 'production') ||
-      (envB === 'staging' && envA === 'production') ||
-      (envA === 'testing' && envB === 'production') ||
-      (envB === 'testing' && envA === 'production');
+      envA !== envB &&
+      !(isProdOrDeploy(envA) && isProdOrDeploy(envB)) &&
+      concreteRuntimeEnvs.includes(envA) &&
+      concreteRuntimeEnvs.includes(envB);
 
     if (isEnvDisjoint) {
       divergences.push('environment');

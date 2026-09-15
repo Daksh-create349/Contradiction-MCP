@@ -130,6 +130,27 @@ export class ResolutionAdvisor {
       );
     }
 
+    // Evidence quality tie-breaker when authority and freshness are inconclusive
+    if (likelyCurrentClaim === 'uncertain') {
+      if (
+        evidA.score - evidB.score >= 0.2 ||
+        (evidA.quality === 'STRONG' && (evidB.quality === 'WEAK' || evidB.quality === 'INDIRECT'))
+      ) {
+        likelyCurrentClaim = 'claimA';
+        confidence = 0.62;
+        reason = `Authority and freshness are balanced, but Claim A provides superior verifiable empirical evidence (${evidA.quality} vs ${evidB.quality}).`;
+        recommendedAction = `Accept Claim A ('${claimA.value}') due to stronger direct evidence provenance.`;
+      } else if (
+        evidB.score - evidA.score >= 0.2 ||
+        (evidB.quality === 'STRONG' && (evidA.quality === 'WEAK' || evidA.quality === 'INDIRECT'))
+      ) {
+        likelyCurrentClaim = 'claimB';
+        confidence = 0.62;
+        reason = `Authority and freshness are balanced, but Claim B provides superior verifiable empirical evidence (${evidB.quality} vs ${evidA.quality}).`;
+        recommendedAction = `Accept Claim B ('${claimB.value}') due to stronger direct evidence provenance.`;
+      }
+    }
+
     if (evidA.quality === 'WEAK' && evidB.quality === 'STRONG') {
       remainingUncertainty.push('Claim A has weak evidence quality compared to Claim B.');
     } else if (evidB.quality === 'WEAK' && evidA.quality === 'STRONG') {

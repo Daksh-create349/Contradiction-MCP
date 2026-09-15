@@ -9,7 +9,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white&style=flat-square)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
 [![MCP Specification](https://img.shields.io/badge/MCP-2.0.0-8A2BE2.svg?logo=anthropic&logoColor=white&style=flat-square)](https://modelcontextprotocol.io/)
-[![Vitest Tests](https://img.shields.io/badge/Tests-173%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
+[![Vitest Tests](https://img.shields.io/badge/Tests-181%20passed-2ea44f.svg?logo=vitest&logoColor=white&style=flat-square)](tests)
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 
@@ -31,7 +31,7 @@
 
 > [!NOTE]
 >
-> ### Project Status: Active Development (v0.3.0)
+> ### Project Status: Active Development (v0.3.1)
 >
 > **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
 
@@ -76,25 +76,34 @@ When these systems diverge—for example, a Kubernetes manifest deploying Node.j
 
 ## Limitations & Known Edge Cases
 
-While Contradiction MCP is battle-tested on cross-document and cross-source consistency audits, users should be aware of current development limitations:
+While Contradiction MCP is battle-tested on cross-document and cross-source consistency audits, users and integrating agents should take note of current architectural boundaries and operational edge cases:
 
-1. **Intra-Manifest Hierarchical Collisions (Deeply Nested JSON/YAML)**:
-   - **Behavior**: Key-value extraction flattens object hierarchies into leaf tokens. In complex single manifests (such as Kubernetes deployments), parameters sharing identical leaf keys across distinct blocks (e.g., `readinessProbe.initialDelaySeconds` vs `livenessProbe.initialDelaySeconds`, or container `resources.requests.cpu` vs `resources.limits.cpu`) can trigger intra-file candidate comparisons and false-positive warnings.
-   - **Mitigation**: Focus analysis on cross-document source verification or filter by external source boundaries. Hierarchical path-aware namespace isolation is currently under active development.
+1. **Intra-Manifest Hierarchical Collisions (Deeply Nested JSON/YAML/K8s)**:
+   - **Behavior**: Key-value extraction flattens object hierarchies into leaf tokens. In complex single manifests (such as Kubernetes deployments or Terraform plans), parameters sharing identical leaf keys across distinct blocks (e.g., `readinessProbe.initialDelaySeconds` vs `livenessProbe.initialDelaySeconds`, or container `resources.requests.cpu` vs `resources.limits.cpu`) can trigger intra-file candidate comparisons and false-positive warnings.
+   - **Mitigation**: Focus analysis on cross-document source verification or filter by external source boundaries (`sync_source` / `compare_sources`). Full JSON-path namespace scoping is in development for future releases.
 
-2. **Heading & Brand Entity Extraction**:
-   - **Behavior**: Document headings containing version-like keywords (e.g., `"2. Node.js V8 Engine Upgrade"`) may occasionally extract the engine brand or section numeral as a software version string, triggering local version mismatch warnings against runtime version specifications.
-   - **Mitigation**: Structure specifications using standard tables, key-value mappings, or explicit parameter declarations.
+2. **Heuristic Claim Extraction vs Nuanced Prose Negations**:
+   - **Behavior**: Heuristic extractors identify explicit version strings, ports, URLs, quantities, and key-value declarations from markdown tables, code fences, and bullet points. Complex natural language nuance, rhetorical negations (e.g., _"We initially planned v3.0, but firmly rejected it in favor of v2.4"_), or implied conditionals without standard configuration keys might not extract or may produce contradictory assertions requiring manual review.
+   - **Mitigation**: Use explicit tabular or structured key-value declarations in documentation, or use `create_claim` to programmatically ingest claims with verified predicate semantics.
 
-3. **Static Specifications vs Live Network State**:
-   - **Behavior**: The engine analyzes declared assertions across files, repositories, and documentation. It does not probe live runtime sockets, ephemeral cloud infrastructure, or running processes unless synced as structured state documents.
+3. **Connector Security Sandboxing & Network Boundaries**:
+   - **Document Connector**: File ingestion is strictly restricted to configured `allowedRoots` (default: current workspace). Paths outside these roots or attempts to navigate via directory traversal are rejected by design.
+   - **Website Connector**: Enforces strict SSRF protections, blocking private RFC 1918 subnets, loopback interfaces (`127.0.0.1`, `localhost`), and cloud instance metadata endpoints (`169.254.169.254`). HTTP redirects are capped at 5 hops to prevent circular redirect exhaustion. Client-side rendered Single-Page Applications (SPAs) requiring JavaScript execution are not executed dynamically; static HTML snapshots or rendered markdown must be supplied.
+   - **GitHub Connector**: Governed by GitHub REST API rate limits (60 requests/hour unauthenticated; 5,000 requests/hour with `GITHUB_TOKEN`).
 
-4. **Candidate Pair Scalability on Giant Monoliths**:
-   - **Behavior**: Files producing >1,000 claims increase pairwise combinations quadratically ($O(N^2)$ worst-case prior to similarity filtering).
-   - **Mitigation**: Bounded file size guards (`MAX_FILE_SIZE_BYTES`, default 10MB) prevent memory exhaust. Partition giant monoliths into modular architecture specs.
+4. **Static Assertions vs Ephemeral Live Infrastructure**:
+   - **Behavior**: The engine analyzes declared assertions across files, repositories, API specs, and documentation. It does not probe live runtime network sockets, ephemeral cloud container states, or uncommitted database rows unless synced as structured state documents.
 
-5. **Language & Syntax Scope**:
-   - **Behavior**: Extraction heuristics, unit normalizers (e.g., `GB`, `MB`, `ms`), and predicate patterns are currently tuned for English documentation and standard DevOps/software configuration keys. Multi-lingual natural language extraction without standard keying is planned for future releases.
+5. **Pairwise Combinatorial Complexity on Monolithic Manifests**:
+   - **Behavior**: Files producing >1,000 claims increase pairwise combinations quadratically ($O(N^2)$ worst-case prior to subject grouping and similarity pruning).
+   - **Mitigation**: Bounded file size guards (`MAX_FILE_SIZE_BYTES`, default 10MB) prevent memory exhaustion. Partition giant monolithic specifications into modular domain or component manifests.
+
+6. **Environment & Scope Assumptions**:
+   - **Behavior**: Contradiction MCP recognizes disjoint runtime environments (`development`, `staging`, `testing`, `production`, `deployment`, `ci`). However, if claims are ingested without explicit `environment` or `scope` metadata, the engine conservatively assumes they apply to the same global subject scope.
+   - **Mitigation**: Provide explicit `environment` and `scope` arguments when syncing sources or creating claims to prevent false positives across heterogeneous environments.
+
+7. **Language & Domain Units**:
+   - **Behavior**: Predicate patterns, quantity normalizers (`GB`, `MB`, `ms`, `s`, ports, semantic versions, comma-formatted numbers), and terminology heuristics are tuned for English technical documentation and standard DevOps configurations. Multi-lingual prose extraction without standard keying is planned for future major releases.
 
 ---
 
@@ -474,7 +483,7 @@ main();
 | `npm run build`          | Compiles TypeScript and packages SQL migration scripts                       |
 | `npm start`              | Launches compiled production server (`node dist/index.js`)                   |
 | `npm run dev`            | Runs development server with on-the-fly TypeScript execution                 |
-| `npm test`               | Runs complete Vitest test suite (**173 tests across 24 files**)              |
+| `npm test`               | Runs complete Vitest test suite (**181 tests across 25 files**)              |
 | `npm run test:coverage`  | Generates detailed V8 code coverage report                                   |
 | `npm run verify`         | Runs all 62 end-to-end verification gates (protocol, security, heuristics)   |
 | `npm run demo`           | Executes live 17-step end-to-end demonstration scenario                      |
@@ -542,6 +551,19 @@ docker compose logs -f
 ---
 
 ## Release History
+
+### v0.3.1 (2026-09-15)
+
+- **Security & Extraction Hardening**: Replaced shell string execution in `DocumentConnector` with safe `execFileSync`, eliminating command injection vectors in `.docx` processing.
+- **Website Connector Redirect Safety**: Enforced a strict maximum of 5 HTTP redirects to prevent unbounded redirect loops and guaranteed timeout cleanup on all fetch error paths.
+- **Authority & Specification Role Scoring**: Added `'specification'` and `'deployment'` to standard claim source roles with a dedicated authority score of `0.75` in `AuthorityScorer`, preventing specification claims from falling into low-confidence fallbacks.
+- **Evidence Metadata Alignment**: Aligned connector provenance metadata (`lineRange`, `evidence`) with `EvidenceEvaluator` and `AuthorityScorer` schema expectations to accurately quantify citation directness and snippet quality.
+- **Deterministic Resolution Tie-Breaking**: Enhanced `ResolutionAdvisor` to evaluate evidence quality as a deterministic tie-breaker before falling back to `'uncertain'`.
+- **Environment Disjointness Heuristics**: Expanded `ContextAnalyzer` environment comparison to recognize non-overlapping tiers (`development`, `staging`, `testing`, `production`, `deployment`, `ci`), eliminating false-positive contradiction flags across distinct environments.
+- **Comma-Formatted Numeric Normalization**: Stripped comma separators in `ValueComparator` (`isLikelyNumber`, `normalizeQuantity`, `compareNumbers`) so formatted numbers (e.g., `"5,000"`) compare accurately against integer values.
+- **Deterministic Database Pagination**: Added SQL `OFFSET` support and primary key tie-breakers (`ORDER BY created_at DESC, id ASC`) across `listSources`, `listClaims`, and `listContradictions` queries.
+- **Server Tool Delegation Fixes**: Delegated `test_connection` to registered connector implementations and forwarded pagination offsets and sync metadata.
+- **Expanded Regression Suite**: Added dedicated regression test suite (`tests/bugfixes.test.ts`), raising test coverage to 181 passing tests across 25 suites.
 
 ### v0.3.0 (2026-09-14)
 

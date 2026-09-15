@@ -46,7 +46,7 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
 
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
-  const version = options.version || '0.3.0';
+  const version = options.version || '0.3.1';
 
   const reviewService =
     options.reviewService ?? (options.dbManager ? new ReviewService(options.dbManager) : undefined);
@@ -164,7 +164,11 @@ export function createMcpServer(options: ServerOptions): McpServer {
         metricsService.recordToolCall('list_sources');
         const connectors = options.connectorRegistry?.list() ?? [];
         const sources = options.dbManager
-          ? options.dbManager.listSources({ type: args.type, limit: args.limit ?? 50 })
+          ? options.dbManager.listSources({
+              type: args.type,
+              limit: args.limit ?? 50,
+              offset: args.offset,
+            })
           : [];
         return {
           isError: false,
@@ -223,31 +227,30 @@ export function createMcpServer(options: ServerOptions): McpServer {
           const repo = parts[1] || '';
           const connector = options.connectorRegistry?.get('github') as GitHubConnector | undefined;
           if (!connector) throw new NotFoundError('Connector', 'github');
-          const result = await connector.testConnection({ owner, repo });
+          const result = await connector.testConnection({ owner, repo, branch: args.branch });
           return {
             isError: !result.accessible,
             content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
           };
         } else if (args.connector === 'website') {
+          const connector = options.connectorRegistry?.get('website');
+          if (!connector) throw new NotFoundError('Connector', 'website');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const result = await (connector as any).testConnection({ url: args.target });
           return {
-            isError: false,
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify(
-                  {
-                    connector: 'website',
-                    target: args.target,
-                    accessible: true,
-                    message: 'URL format and SSRF validation passed',
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
+            isError: !result.accessible,
+            content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
           };
         } else {
+          const connector = options.connectorRegistry?.get('document');
+          if (connector) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = await (connector as any).testConnection({ filePath: args.target });
+            return {
+              isError: !result.accessible,
+              content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+            };
+          }
           const exists = fs.existsSync(args.target);
           return {
             isError: !exists,
@@ -404,6 +407,9 @@ export function createMcpServer(options: ServerOptions): McpServer {
           input = {
             url: args.source || '',
             sourceName: args.sourceName,
+            subject: args.subject,
+            scope: args.scope,
+            environment: args.environment,
           };
         } else {
           input = {
@@ -1112,6 +1118,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
       request.params.arguments = {
         connector: 'github',
         target: `${args.owner}/${args.repo}`,
+        branch: args.branch,
       };
     } else if (toolName === 'sync_document') {
       request.params.name = 'sync_source';

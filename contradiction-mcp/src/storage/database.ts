@@ -415,7 +415,7 @@ export class DatabaseManager {
     return { source: created, isNew: true };
   }
 
-  public listSources(options?: { type?: string; limit?: number }): Source[] {
+  public listSources(options?: { type?: string; limit?: number; offset?: number }): Source[] {
     const rawDb = this.getRawDb();
     let query = 'SELECT * FROM sources';
     const params: unknown[] = [];
@@ -425,11 +425,18 @@ export class DatabaseManager {
       params.push(options.type);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY created_at DESC, id ASC';
 
     if (options?.limit && options.limit > 0) {
       query += ' LIMIT ?';
       params.push(options.limit);
+      if (options?.offset && options.offset > 0) {
+        query += ' OFFSET ?';
+        params.push(options.offset);
+      }
+    } else if (options?.offset && options.offset > 0) {
+      query += ' LIMIT -1 OFFSET ?';
+      params.push(options.offset);
     }
 
     const rows = rawDb.prepare(query).all(...params) as Record<string, unknown>[];
@@ -801,7 +808,7 @@ export class DatabaseManager {
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY created_at DESC, id ASC';
 
     if (options?.limit && options.limit > 0) {
       query += ' LIMIT ?';
@@ -1044,7 +1051,7 @@ export class DatabaseManager {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ' ORDER BY detected_at DESC';
+    query += ' ORDER BY detected_at DESC, id ASC';
 
     if (options?.limit && options.limit > 0) {
       query += ' LIMIT ?';
@@ -1054,6 +1061,9 @@ export class DatabaseManager {
         query += ' OFFSET ?';
         params.push(options.offset);
       }
+    } else if (options?.offset && options.offset > 0) {
+      query += ' LIMIT -1 OFFSET ?';
+      params.push(options.offset);
     }
 
     const rows = rawDb.prepare(query).all(...params) as Record<string, unknown>[];

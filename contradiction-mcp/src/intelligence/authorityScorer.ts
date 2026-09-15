@@ -40,6 +40,12 @@ export class AuthorityScorer {
         roleScore = 0.9;
         reasoning.push('Configuration source role indicates runtime authority (score: 0.90)');
         break;
+      case 'specification':
+        roleScore = 0.75;
+        reasoning.push(
+          'Architecture or specification defines formal system contract (score: 0.75)',
+        );
+        break;
       case 'documentation':
         roleScore = 0.55;
         reasoning.push(
@@ -101,14 +107,21 @@ export class AuthorityScorer {
 
     // 4. Evidence Directness Score (weight: 0.15)
     let directnessScore = 0.5;
-    if (
+    const hasLine =
       metadata.line !== undefined ||
-      (metadata.startLine !== undefined && metadata.endLine !== undefined)
-    ) {
+      (metadata.startLine !== undefined && metadata.endLine !== undefined) ||
+      (Array.isArray(metadata.lineRange) && metadata.lineRange.length > 0);
+    if (hasLine) {
       directnessScore += 0.25;
       reasoning.push('Exact line provenance provides direct verifiable evidence');
     }
-    if (typeof metadata.snippet === 'string' && metadata.snippet.trim().length > 0) {
+    const snippet =
+      typeof metadata.snippet === 'string'
+        ? metadata.snippet.trim()
+        : typeof metadata.evidence === 'string'
+          ? metadata.evidence.trim()
+          : '';
+    if (snippet.length > 0) {
       directnessScore += 0.25;
       reasoning.push('Verbatim snippet available');
     }

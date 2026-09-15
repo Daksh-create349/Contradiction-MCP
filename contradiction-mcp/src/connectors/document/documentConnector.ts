@@ -189,7 +189,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
       }
     } else if (ext === '.docx') {
       try {
-        const xml = child_process.execSync(`unzip -p "${realPath}" word/document.xml`, {
+        const xml = child_process.execFileSync('unzip', ['-p', realPath, 'word/document.xml'], {
           encoding: 'utf-8',
           maxBuffer: this.maxFileSizeBytes,
         });
