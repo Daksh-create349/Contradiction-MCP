@@ -53,11 +53,20 @@ export class McpHttpServer {
       const clientIp = req.socket.remoteAddress || 'unknown';
       const url = req.url || '/';
 
-      // Security Headers
+      // Security and Cross-Origin Resource Sharing (CORS) Headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, Accept, mcp-session-id, Last-Event-ID');
+      res.setHeader('Access-Control-Max-Age', '86400');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('Referrer-Policy', 'no-referrer');
-      res.setHeader('Content-Security-Policy', "default-src 'none'");
+
+      // Preflight OPTIONS requests (required for web browsers & Smithery/Glama Observability)
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
 
       // Localhost validation if binding to loopback
       if (this.host === '127.0.0.1' || this.host === 'localhost') {
@@ -96,13 +105,17 @@ export class McpHttpServer {
       }
 
       // 1. Health endpoint (Liveness)
-      if (url === '/health' && req.method === 'GET') {
+      if ((url === '/health' || url === '/status') && (req.method === 'GET' || req.method === 'HEAD')) {
         try {
           const health = await this.healthService.getHealth();
           res.writeHead(health.status === 'healthy' ? 200 : 503, {
             'Content-Type': 'application/json',
           });
-          res.end(JSON.stringify(health, null, 2));
+          if (req.method === 'HEAD') {
+            res.end();
+          } else {
+            res.end(JSON.stringify(health, null, 2));
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           res.writeHead(503, { 'Content-Type': 'application/json' });
@@ -112,13 +125,17 @@ export class McpHttpServer {
       }
 
       // 2. Readiness endpoint
-      if (url === '/ready' && req.method === 'GET') {
+      if (url === '/ready' && (req.method === 'GET' || req.method === 'HEAD')) {
         try {
           const readiness = this.healthService.getReadiness();
           res.writeHead(readiness.status === 'ready' ? 200 : 503, {
             'Content-Type': 'application/json',
           });
-          res.end(JSON.stringify(readiness, null, 2));
+          if (req.method === 'HEAD') {
+            res.end();
+          } else {
+            res.end(JSON.stringify(readiness, null, 2));
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           res.writeHead(503, { 'Content-Type': 'application/json' });
@@ -127,11 +144,15 @@ export class McpHttpServer {
         return;
       }
 
-      // 3. Metrics endpoint
-      if (url === '/metrics' && req.method === 'GET') {
+      // 3. Metrics endpoint (Observability)
+      if (url === '/metrics' && (req.method === 'GET' || req.method === 'HEAD')) {
         const snapshot = globalMetrics.getSnapshot();
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(snapshot, null, 2));
+        if (req.method === 'HEAD') {
+          res.end();
+        } else {
+          res.end(JSON.stringify(snapshot, null, 2));
+        }
         return;
       }
 

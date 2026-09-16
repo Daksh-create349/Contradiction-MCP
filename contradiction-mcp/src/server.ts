@@ -74,12 +74,45 @@ export function createMcpServer(options: ServerOptions): McpServer {
     schema: Record<string, z.ZodTypeAny>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     handler: (args: any) => Promise<any>,
+    annotations?: {
+      readOnlyHint?: boolean;
+      destructiveHint?: boolean;
+      idempotentHint?: boolean;
+      openWorldHint?: boolean;
+    },
+    outputSchema?: Record<string, z.ZodTypeAny>,
   ) => {
-    if (!schema || Object.keys(schema).length === 0) {
-      server.registerTool(toolName, { description }, handler);
-    } else {
-      server.registerTool(toolName, { description, inputSchema: schema }, handler);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolConfig: Record<string, any> = { description };
+    if (schema && Object.keys(schema).length > 0) {
+      toolConfig.inputSchema = schema;
     }
+    if (annotations) {
+      toolConfig.annotations = annotations;
+    }
+    if (outputSchema) {
+      toolConfig.outputSchema = outputSchema;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wrappedHandler = async (args: any) => {
+      const res = await handler(args);
+      if (outputSchema && res && !res.isError && res.structuredContent === undefined) {
+        if (Array.isArray(res.content) && res.content[0]?.text) {
+          try {
+            res.structuredContent = JSON.parse(res.content[0].text);
+          } catch {
+            res.structuredContent = {};
+          }
+        } else {
+          res.structuredContent = {};
+        }
+      }
+      return res;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    server.registerTool(toolName, toolConfig as any, wrappedHandler);
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (server as any).tool = registerTool;
@@ -134,6 +167,20 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      status: z.string().optional().describe('Overall server operational health status (healthy, degraded, unhealthy)'),
+      server: z.record(z.string(), z.unknown()).optional().describe('Server metadata, version, and uptime'),
+      mcp: z.record(z.string(), z.unknown()).optional().describe('MCP protocol implementation details'),
+      database: z.record(z.string(), z.unknown()).optional().describe('SQLite storage and table status'),
+      timestamp: z.string().optional().describe('ISO-8601 status check timestamp'),
+      metrics: z.record(z.string(), z.unknown()).optional().describe('Operational snapshot metrics'),
     },
   );
 
@@ -196,6 +243,18 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      count: z.number().optional().describe('Number of registered connector instances'),
+      connectors: z.array(z.record(z.string(), z.unknown())).optional().describe('Registered connector configurations'),
+      sourcesCount: z.number().optional().describe('Number of ingested source records returned'),
+      sources: z.array(z.record(z.string(), z.unknown())).optional().describe('Ingested source entity records'),
     },
   );
 
@@ -288,6 +347,18 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    {
+      connector: z.string().optional().describe('Connector type tested'),
+      target: z.string().optional().describe('Target identifier validated'),
+      accessible: z.boolean().optional().describe('Whether target was accessible'),
+      message: z.string().optional().describe('Diagnostic connection message'),
     },
   );
 
@@ -454,6 +525,20 @@ export function createMcpServer(options: ServerOptions): McpServer {
         };
       }
     },
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    {
+      status: z.string().optional().describe('Status of synchronization'),
+      connector: z.string().optional().describe('Connector used for sync'),
+      repository: z.string().optional().describe('Source name or repository synced'),
+      claimsCreated: z.number().optional().describe('Number of new claims created'),
+      claimsUpdated: z.number().optional().describe('Number of existing claims updated'),
+      durationMs: z.number().optional().describe('Sync execution duration in milliseconds'),
+    },
   );
 
   // 5. Tool: scan_contradictions
@@ -536,6 +621,17 @@ export function createMcpServer(options: ServerOptions): McpServer {
         };
       }
     },
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      count: z.number().optional().describe('Total number of contradictions detected'),
+      contradictions: z.array(z.record(z.string(), z.unknown())).optional().describe('Detected contradiction records'),
+      scannedCount: z.number().optional().describe('Total number of claim candidate pairs evaluated'),
+    },
   );
 
   // 6. Tool: analyze_claim_pair
@@ -604,6 +700,19 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      hasContradiction: z.boolean().optional().describe('Whether a factual conflict was detected between the claims'),
+      severity: z.string().nullable().optional().describe('Contradiction severity: LOW, MEDIUM, HIGH, CRITICAL'),
+      confidence: z.number().optional().describe('Confidence score between 0.0 and 1.0'),
+      explanation: z.string().optional().describe('Detailed explanation of contradiction rationale'),
+      suggestedAction: z.string().nullable().optional().describe('Recommended resolution action'),
     },
   );
 
@@ -681,6 +790,17 @@ export function createMcpServer(options: ServerOptions): McpServer {
         };
       }
     },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      count: z.number().optional().describe('Number of claims returned in current page'),
+      total: z.number().optional().describe('Total count of claims matching filters'),
+      claims: z.array(z.record(z.string(), z.unknown())).optional().describe('List of retrieved factual claims'),
+    },
   );
 
   // 8. Tool: get_claim
@@ -742,6 +862,16 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      claim: z.record(z.string(), z.unknown()).nullable().optional().describe('Retrieved claim record'),
+      history: z.array(z.record(z.string(), z.unknown())).optional().describe('Chronological history of claim values'),
     },
   );
 
@@ -852,6 +982,17 @@ export function createMcpServer(options: ServerOptions): McpServer {
         };
       }
     },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      count: z.number().optional().describe('Number of contradictions returned in current page'),
+      total: z.number().optional().describe('Total count of contradictions matching filter'),
+      contradictions: z.array(z.record(z.string(), z.unknown())).optional().describe('List of contradiction records'),
+    },
   );
 
   // 10. Tool: get_contradiction
@@ -918,6 +1059,16 @@ export function createMcpServer(options: ServerOptions): McpServer {
         };
       }
     },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      contradiction: z.record(z.string(), z.unknown()).nullable().optional().describe('Full contradiction details'),
+      auditTrail: z.array(z.record(z.string(), z.unknown())).optional().describe('Review and resolution audit history'),
+    },
   );
 
   // 11. Tool: advise_resolution
@@ -971,6 +1122,18 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      contradictionId: z.string().optional().describe('ID of the analyzed contradiction'),
+      recommendedAction: z.string().optional().describe('Recommended action: accept_source_a, accept_source_b, update_both, investigate'),
+      confidence: z.number().optional().describe('Confidence score from 0.0 to 1.0'),
+      rationale: z.string().optional().describe('Authority and temporal rationale for the resolution advice'),
     },
   );
 
@@ -1076,6 +1239,17 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
+    },
+    {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    {
+      id: z.string().optional().describe('ID of the updated contradiction'),
+      status: z.string().optional().describe('Updated contradiction lifecycle status'),
+      chosenClaimId: z.string().nullable().optional().describe('Authoritative claim ID chosen'),
     },
   );
 
