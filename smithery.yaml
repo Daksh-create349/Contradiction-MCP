@@ -21,3 +21,7 @@ startCommand:
         ...(config.databasePath ? { DATABASE_PATH: config.databasePath } : {})
       }
     })
+exampleConfig:
+  githubToken: ""
+  databasePath: "./data/contradiction.db"
+

@@ -1,6 +1,23 @@
 {
   "name": "contradiction-mcp-workspace",
   "private": true,
+  "description": "Production-ready Model Context Protocol (MCP) server that continuously detects conflicts, outdated facts, and discrepancies across documentation, GitHub PRs, websites, and configuration files.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Daksh-create349/Contradiction-MCP.git"
+  },
+  "homepage": "https://contradiction-mcp.onrender.com",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "contradiction-detection",
+    "knowledge-consistency",
+    "ai-agent",
+    "devtools",
+    "documentation-drift"
+  ],
+  "author": "Daksh Srivastava",
   "scripts": {
     "build": "pnpm -C contradiction-mcp run build",
     "start": "pnpm -C contradiction-mcp run start",
