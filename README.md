@@ -13,7 +13,7 @@
 [![Security Audit](https://img.shields.io/badge/Security-0%20vulnerabilities-brightgreen.svg?style=flat-square)](package.json)
 [![Code Style](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?logo=prettier&logoColor=white&style=flat-square)](https://prettier.io/)
 [![Glama Score](https://img.shields.io/badge/Glama%20Score-100%2F100-00d26a.svg?style=flat-square)](https://glama.ai/mcp/servers/Daksh-create349/Contradiction-MCP)
-[![Smithery](https://smithery.ai/badge/contradiction-mcp)](https://smithery.ai/server/contradiction-mcp)
+[![Smithery Score](https://img.shields.io/badge/Smithery%20Score-98%2F100-FF5722.svg?style=flat-square)](https://smithery.ai/servers/dakshshrivastav56/contradiction-mcp)
 
 <br/>
 
@@ -207,7 +207,7 @@ npx -y contradiction-mcp install windsurf
 npx -y contradiction-mcp install all
 
 # Or install via Smithery CLI
-npx -y @smithery/cli install contradiction-mcp --client claude
+npx -y smithery mcp add dakshshrivastav56/contradiction-mcp
 ```
 
 ### Local Setup from Cloned Source
