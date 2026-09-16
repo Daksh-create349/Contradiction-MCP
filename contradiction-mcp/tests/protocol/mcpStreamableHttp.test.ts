@@ -78,12 +78,12 @@ describe('MCP Streamable HTTP Protocol Suite', () => {
     expect(tools.tools.length).toBe(12);
 
     const toolNames = tools.tools.map((t) => t.name);
-    expect(toolNames).toContain('check_health');
-    expect(toolNames).toContain('analyze_claim_pair');
-    expect(toolNames).toContain('scan_contradictions');
-    expect(toolNames).toContain('list_contradictions');
-    expect(toolNames).toContain('sync_source');
-    expect(toolNames).toContain('resolve_contradiction');
+    expect(toolNames).toContain('contradiction.health.check');
+    expect(toolNames).toContain('contradiction.claims.analyze');
+    expect(toolNames).toContain('contradiction.conflicts.scan');
+    expect(toolNames).toContain('contradiction.conflicts.list');
+    expect(toolNames).toContain('contradiction.sources.sync');
+    expect(toolNames).toContain('contradiction.conflicts.resolve');
 
     await client.close();
   });

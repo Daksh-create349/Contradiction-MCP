@@ -73,18 +73,18 @@ describe('MCP Client Harness: Tools, Resources, & Prompts Verification', () => {
     const toolNames = toolsResult.tools.map((t) => t.name);
 
     expect(toolsResult.tools).toHaveLength(12);
-    expect(toolNames).toContain('check_health');
-    expect(toolNames).toContain('list_sources');
-    expect(toolNames).toContain('test_connection');
-    expect(toolNames).toContain('sync_source');
-    expect(toolNames).toContain('scan_contradictions');
-    expect(toolNames).toContain('analyze_claim_pair');
-    expect(toolNames).toContain('list_claims');
-    expect(toolNames).toContain('get_claim');
-    expect(toolNames).toContain('list_contradictions');
-    expect(toolNames).toContain('get_contradiction');
-    expect(toolNames).toContain('advise_resolution');
-    expect(toolNames).toContain('resolve_contradiction');
+    expect(toolNames).toContain('contradiction.health.check');
+    expect(toolNames).toContain('contradiction.sources.list');
+    expect(toolNames).toContain('contradiction.sources.test');
+    expect(toolNames).toContain('contradiction.sources.sync');
+    expect(toolNames).toContain('contradiction.conflicts.scan');
+    expect(toolNames).toContain('contradiction.claims.analyze');
+    expect(toolNames).toContain('contradiction.claims.list');
+    expect(toolNames).toContain('contradiction.claims.get');
+    expect(toolNames).toContain('contradiction.conflicts.list');
+    expect(toolNames).toContain('contradiction.conflicts.get');
+    expect(toolNames).toContain('contradiction.conflicts.advise');
+    expect(toolNames).toContain('contradiction.conflicts.resolve');
 
     // 2. Resource listing
     const resourcesResult = await client.listResources();

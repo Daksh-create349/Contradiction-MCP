@@ -85,25 +85,25 @@ describe('Real-World Multi-Format Architecture Ingestion (MD, DOCX, JSON)', () =
 
     const toolNames = listRes.tools.map((t) => t.name);
     const expectedCanonicalTools = [
-      'check_health',
-      'list_sources',
-      'test_connection',
-      'sync_source',
-      'scan_contradictions',
-      'analyze_claim_pair',
-      'list_claims',
-      'get_claim',
-      'list_contradictions',
-      'get_contradiction',
-      'advise_resolution',
-      'resolve_contradiction',
+      'contradiction.health.check',
+      'contradiction.sources.list',
+      'contradiction.sources.test',
+      'contradiction.sources.sync',
+      'contradiction.conflicts.scan',
+      'contradiction.claims.analyze',
+      'contradiction.claims.list',
+      'contradiction.claims.get',
+      'contradiction.conflicts.list',
+      'contradiction.conflicts.get',
+      'contradiction.conflicts.advise',
+      'contradiction.conflicts.resolve',
     ];
 
     expect(toolNames.sort()).toEqual(expectedCanonicalTools.sort());
 
-    // Verify all tool names adhere to strict verb_noun pattern
+    // Verify all tool names adhere to strict navigable dot-notation tree pattern
     for (const name of toolNames) {
-      expect(name).toMatch(/^(check|list|test|sync|scan|analyze|get|advise|resolve)_[a-z_]+$/);
+      expect(name).toMatch(/^contradiction\.[a-z]+\.[a-z]+$/);
     }
 
     // Verify each tool has non-empty description and typed schema

@@ -123,7 +123,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 1. Tool: check_health
   registerTool(
-    'check_health',
+    'contradiction.health.check',
     'Checks the operational status of the Contradiction MCP server, including SQLite database connectivity, storage metrics, active connectors, and runtime diagnostics. Read-only and safe to invoke frequently for readiness and liveness probing.',
     {
       verbose: z
@@ -201,7 +201,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 2. Tool: list_sources
   registerTool(
-    'list_sources',
+    'contradiction.sources.list',
     'Lists all registered external data source connectors (document, website, github) and ingested source entities tracked by the system, including source IDs, synchronization timestamps, and claim counts. Read-only operation. Use this tool to inspect available data sources before initiating scans or synchronization.',
     {
       type: z
@@ -281,7 +281,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 3. Tool: test_connection
   registerTool(
-    'test_connection',
+    'contradiction.sources.test',
     'Validates connectivity, authentication, and accessibility for an external data source or connector (such as a GitHub repository, web URL, or local file) without persisting any data or modifying state. Use this tool to verify credentials and target reachability prior to running synchronization.',
     {
       connector: z
@@ -385,7 +385,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 4. Tool: sync_source
   registerTool(
-    'sync_source',
+    'contradiction.sources.sync',
     'Ingests and synchronizes one or more external data sources (local document file, public website URL, or GitHub repository), extracts factual claims with exact line provenance, idempotently updates SQLite storage, and triggers automatic contradiction discovery. Mutating and idempotent operation. Supports single source ingestion or concurrent batch synchronization.',
     {
       connector: z
@@ -564,7 +564,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 5. Tool: scan_contradictions
   registerTool(
-    'scan_contradictions',
+    'contradiction.conflicts.scan',
     'Discovers conflicting and inconsistent factual assertions across connected sources. Can scan the entire database, or scope the scan to a specific source, file, or single claim. Uses deterministic candidate grouping, entity resolution, and value comparison algorithms to detect and persist contradictions without duplicates. Mutating and idempotent.',
     {
       sourceId: z
@@ -663,7 +663,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 6. Tool: analyze_claim_pair
   registerTool(
-    'analyze_claim_pair',
+    'contradiction.claims.analyze',
     'Performs deep comparative analysis between two factual claims to determine whether they contradict each other. Evaluates semantic meaning, value differences, numeric/temporal ranges, and contextual dimensions (environment divergence, scope, source roles). Returns contradiction classification, severity, confidence score, and detailed explanation. Read-only operation.',
     {
       claimAId: z.string().min(1).describe('The unique ID of the first claim'),
@@ -755,7 +755,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 7. Tool: list_claims
   registerTool(
-    'list_claims',
+    'contradiction.claims.list',
     'Queries stored factual assertions and claims extracted from connected sources with flexible filtering by subject, predicate, source, environment, and value type. Read-only operation. Use this tool to explore known facts, find subjects with multiple assertions, or inspect extracted data.',
     {
       subject: z
@@ -845,7 +845,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 8. Tool: get_claim
   registerTool(
-    'get_claim',
+    'contradiction.claims.get',
     'Retrieves complete details for a single factual claim by ID, including its subject, predicate, current and normalized values, provenance evidence, originating source metadata, and chronological historical value transitions over time. Read-only operation.',
     {
       claimId: z.string().min(1).describe('The unique ID of the claim to retrieve'),
@@ -924,7 +924,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 9. Tool: list_contradictions
   registerTool(
-    'list_contradictions',
+    'contradiction.conflicts.list',
     'Queries stored contradiction records from the database with filtering by resolution status, severity level, contradiction type, and confidence score. Returns enriched contradiction records with associated claim summaries and originating source details. Read-only operation. Use this tool to prioritize and triage conflicts.',
     {
       status: z
@@ -1047,7 +1047,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 10. Tool: get_contradiction
   registerTool(
-    'get_contradiction',
+    'contradiction.conflicts.get',
     'Retrieves complete details of a single contradiction record by ID, including full representations of both conflicting claims, originating source metadata, exact line evidence snippets, and chronological audit trail of all review and resolution actions. Read-only operation.',
     {
       contradictionId: z
@@ -1130,7 +1130,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 11. Tool: advise_resolution
   registerTool(
-    'advise_resolution',
+    'contradiction.conflicts.advise',
     'Generates deterministic authority, freshness, and evidence comparison between conflicting claims to advise an AI agent or human reviewer on which claim likely represents current truth and recommended remediation steps. Read-only deterministic calculation.',
     {
       contradictionId: z
@@ -1202,7 +1202,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
 
   // 12. Tool: resolve_contradiction
   registerTool(
-    'resolve_contradiction',
+    'contradiction.conflicts.resolve',
     'Updates the lifecycle status and audit trail of a contradiction record. Supports marking as REVIEWED, resolving as RESOLVED with an authoritative chosen claim, dismissing as DISMISSED (acceptable divergence), or reopening back to OPEN. Preserves an immutable audit trail of reviewer identity, decision reason, and timestamp. Mutating operation.',
     {
       contradictionId: z
@@ -1331,10 +1331,28 @@ export function createMcpServer(options: ServerOptions): McpServer {
     const toolName = request.params?.name;
     const args = request.params?.arguments || {};
 
-    if (toolName === 'health_check') {
-      request.params.name = 'check_health';
+    // Map canonical snake_case to dot-notation names
+    const canonicalMap: Record<string, string> = {
+      check_health: 'contradiction.health.check',
+      list_sources: 'contradiction.sources.list',
+      test_connection: 'contradiction.sources.test',
+      sync_source: 'contradiction.sources.sync',
+      scan_contradictions: 'contradiction.conflicts.scan',
+      analyze_claim_pair: 'contradiction.claims.analyze',
+      list_claims: 'contradiction.claims.list',
+      get_claim: 'contradiction.claims.get',
+      list_contradictions: 'contradiction.conflicts.list',
+      get_contradiction: 'contradiction.conflicts.get',
+      advise_resolution: 'contradiction.conflicts.advise',
+      resolve_contradiction: 'contradiction.conflicts.resolve',
+    };
+
+    if (canonicalMap[toolName]) {
+      request.params.name = canonicalMap[toolName];
+    } else if (toolName === 'health_check') {
+      request.params.name = 'contradiction.health.check';
     } else if (toolName === 'list_connectors') {
-      request.params.name = 'list_sources';
+      request.params.name = 'contradiction.sources.list';
     } else if (toolName === 'test_github_connection') {
       if (!args.owner || !args.repo) {
         return {
@@ -1351,14 +1369,14 @@ export function createMcpServer(options: ServerOptions): McpServer {
           ],
         };
       }
-      request.params.name = 'test_connection';
+      request.params.name = 'contradiction.sources.test';
       request.params.arguments = {
         connector: 'github',
         target: `${args.owner}/${args.repo}`,
         branch: args.branch,
       };
     } else if (toolName === 'sync_document') {
-      request.params.name = 'sync_source';
+      request.params.name = 'contradiction.sources.sync';
       request.params.arguments = {
         connector: 'document',
         source: args.filePath,
@@ -1370,7 +1388,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         runDiscovery: args.runDiscovery,
       };
     } else if (toolName === 'sync_website') {
-      request.params.name = 'sync_source';
+      request.params.name = 'contradiction.sources.sync';
       request.params.arguments = {
         connector: 'website',
         source: args.url,
@@ -1378,7 +1396,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         runDiscovery: args.runDiscovery,
       };
     } else if (toolName === 'sync_github_repository') {
-      request.params.name = 'sync_source';
+      request.params.name = 'contradiction.sources.sync';
       request.params.arguments = {
         connector: 'github',
         source: `${args.owner}/${args.repo}`,
@@ -1394,20 +1412,20 @@ export function createMcpServer(options: ServerOptions): McpServer {
         runDiscovery: args.runDiscovery,
       };
     } else if (toolName === 'scan_for_contradictions') {
-      request.params.name = 'scan_contradictions';
+      request.params.name = 'contradiction.conflicts.scan';
       request.params.arguments = {
         limit: args.limit,
         minConfidence: args.minConfidence,
         includeDismissed: args.includeDismissed,
       };
     } else if (toolName === 'scan_claim_for_contradictions') {
-      request.params.name = 'scan_contradictions';
+      request.params.name = 'contradiction.conflicts.scan';
       request.params.arguments = {
         claimId: args.claimId,
         minConfidence: args.minConfidence,
       };
     } else if (toolName === 'scan_source_for_contradictions') {
-      request.params.name = 'scan_contradictions';
+      request.params.name = 'contradiction.conflicts.scan';
       request.params.arguments = {
         sourceId: args.sourceId,
         minConfidence: args.minConfidence,
@@ -1415,7 +1433,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         includeDismissed: args.includeDismissed,
       };
     } else if (toolName === 'explain_claim_relationship') {
-      request.params.name = 'analyze_claim_pair';
+      request.params.name = 'contradiction.claims.analyze';
       request.params.arguments = {
         claimAId: args.claimAId,
         claimBId: args.claimBId,
