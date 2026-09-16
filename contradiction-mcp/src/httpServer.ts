@@ -56,7 +56,10 @@ export class McpHttpServer {
       // Security and Cross-Origin Resource Sharing (CORS) Headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, Accept, mcp-session-id, Last-Event-ID');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, x-api-key, Accept, mcp-session-id, Last-Event-ID',
+      );
       res.setHeader('Access-Control-Max-Age', '86400');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Referrer-Policy', 'no-referrer');
@@ -105,7 +108,10 @@ export class McpHttpServer {
       }
 
       // 1. Health endpoint (Liveness)
-      if ((url === '/health' || url === '/status') && (req.method === 'GET' || req.method === 'HEAD')) {
+      if (
+        (url === '/health' || url === '/status') &&
+        (req.method === 'GET' || req.method === 'HEAD')
+      ) {
         try {
           const health = await this.healthService.getHealth();
           res.writeHead(health.status === 'healthy' ? 200 : 503, {

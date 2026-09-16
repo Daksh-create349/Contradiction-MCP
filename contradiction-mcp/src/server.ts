@@ -175,12 +175,27 @@ export function createMcpServer(options: ServerOptions): McpServer {
       openWorldHint: false,
     },
     {
-      status: z.string().optional().describe('Overall server operational health status (healthy, degraded, unhealthy)'),
-      server: z.record(z.string(), z.unknown()).optional().describe('Server metadata, version, and uptime'),
-      mcp: z.record(z.string(), z.unknown()).optional().describe('MCP protocol implementation details'),
-      database: z.record(z.string(), z.unknown()).optional().describe('SQLite storage and table status'),
+      status: z
+        .string()
+        .optional()
+        .describe('Overall server operational health status (healthy, degraded, unhealthy)'),
+      server: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Server metadata, version, and uptime'),
+      mcp: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('MCP protocol implementation details'),
+      database: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('SQLite storage and table status'),
       timestamp: z.string().optional().describe('ISO-8601 status check timestamp'),
-      metrics: z.record(z.string(), z.unknown()).optional().describe('Operational snapshot metrics'),
+      metrics: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Operational snapshot metrics'),
     },
   );
 
@@ -252,9 +267,15 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
     {
       count: z.number().optional().describe('Number of registered connector instances'),
-      connectors: z.array(z.record(z.string(), z.unknown())).optional().describe('Registered connector configurations'),
+      connectors: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('Registered connector configurations'),
       sourcesCount: z.number().optional().describe('Number of ingested source records returned'),
-      sources: z.array(z.record(z.string(), z.unknown())).optional().describe('Ingested source entity records'),
+      sources: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('Ingested source entity records'),
     },
   );
 
@@ -629,8 +650,14 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
     {
       count: z.number().optional().describe('Total number of contradictions detected'),
-      contradictions: z.array(z.record(z.string(), z.unknown())).optional().describe('Detected contradiction records'),
-      scannedCount: z.number().optional().describe('Total number of claim candidate pairs evaluated'),
+      contradictions: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('Detected contradiction records'),
+      scannedCount: z
+        .number()
+        .optional()
+        .describe('Total number of claim candidate pairs evaluated'),
     },
   );
 
@@ -708,10 +735,20 @@ export function createMcpServer(options: ServerOptions): McpServer {
       openWorldHint: false,
     },
     {
-      hasContradiction: z.boolean().optional().describe('Whether a factual conflict was detected between the claims'),
-      severity: z.string().nullable().optional().describe('Contradiction severity: LOW, MEDIUM, HIGH, CRITICAL'),
+      hasContradiction: z
+        .boolean()
+        .optional()
+        .describe('Whether a factual conflict was detected between the claims'),
+      severity: z
+        .string()
+        .nullable()
+        .optional()
+        .describe('Contradiction severity: LOW, MEDIUM, HIGH, CRITICAL'),
       confidence: z.number().optional().describe('Confidence score between 0.0 and 1.0'),
-      explanation: z.string().optional().describe('Detailed explanation of contradiction rationale'),
+      explanation: z
+        .string()
+        .optional()
+        .describe('Detailed explanation of contradiction rationale'),
       suggestedAction: z.string().nullable().optional().describe('Recommended resolution action'),
     },
   );
@@ -799,7 +836,10 @@ export function createMcpServer(options: ServerOptions): McpServer {
     {
       count: z.number().optional().describe('Number of claims returned in current page'),
       total: z.number().optional().describe('Total count of claims matching filters'),
-      claims: z.array(z.record(z.string(), z.unknown())).optional().describe('List of retrieved factual claims'),
+      claims: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('List of retrieved factual claims'),
     },
   );
 
@@ -870,8 +910,15 @@ export function createMcpServer(options: ServerOptions): McpServer {
       openWorldHint: false,
     },
     {
-      claim: z.record(z.string(), z.unknown()).nullable().optional().describe('Retrieved claim record'),
-      history: z.array(z.record(z.string(), z.unknown())).optional().describe('Chronological history of claim values'),
+      claim: z
+        .record(z.string(), z.unknown())
+        .nullable()
+        .optional()
+        .describe('Retrieved claim record'),
+      history: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('Chronological history of claim values'),
     },
   );
 
@@ -991,7 +1038,10 @@ export function createMcpServer(options: ServerOptions): McpServer {
     {
       count: z.number().optional().describe('Number of contradictions returned in current page'),
       total: z.number().optional().describe('Total count of contradictions matching filter'),
-      contradictions: z.array(z.record(z.string(), z.unknown())).optional().describe('List of contradiction records'),
+      contradictions: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('List of contradiction records'),
     },
   );
 
@@ -1066,8 +1116,15 @@ export function createMcpServer(options: ServerOptions): McpServer {
       openWorldHint: false,
     },
     {
-      contradiction: z.record(z.string(), z.unknown()).nullable().optional().describe('Full contradiction details'),
-      auditTrail: z.array(z.record(z.string(), z.unknown())).optional().describe('Review and resolution audit history'),
+      contradiction: z
+        .record(z.string(), z.unknown())
+        .nullable()
+        .optional()
+        .describe('Full contradiction details'),
+      auditTrail: z
+        .array(z.record(z.string(), z.unknown()))
+        .optional()
+        .describe('Review and resolution audit history'),
     },
   );
 
@@ -1131,9 +1188,15 @@ export function createMcpServer(options: ServerOptions): McpServer {
     },
     {
       contradictionId: z.string().optional().describe('ID of the analyzed contradiction'),
-      recommendedAction: z.string().optional().describe('Recommended action: accept_source_a, accept_source_b, update_both, investigate'),
+      recommendedAction: z
+        .string()
+        .optional()
+        .describe('Recommended action: accept_source_a, accept_source_b, update_both, investigate'),
       confidence: z.number().optional().describe('Confidence score from 0.0 to 1.0'),
-      rationale: z.string().optional().describe('Authority and temporal rationale for the resolution advice'),
+      rationale: z
+        .string()
+        .optional()
+        .describe('Authority and temporal rationale for the resolution advice'),
     },
   );
 
