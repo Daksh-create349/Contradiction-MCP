@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "💬 Community Discussions"
+    url: "https://github.com/Daksh-create349/Contradiction-MCP/discussions"
+    about: "Ask questions, share ideas, and connect with other contributors."
+  - name: "🔒 Security Vulnerability Report"
+    url: "https://github.com/Daksh-create349/Contradiction-MCP/security/advisories/new"
+    about: "Report security vulnerabilities privately and responsibly."
