@@ -370,7 +370,7 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
     const server = createMcpServer({
       healthService: new HealthService(db, {
         SERVER_NAME: 'contradiction-mcp',
-        SERVER_VERSION: '0.3.2',
+        SERVER_VERSION: '0.3.3',
         NODE_ENV: 'test',
         port: 3000,
         env: 'test',

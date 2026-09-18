@@ -33,7 +33,7 @@
 
 > [!NOTE]
 >
-> ### Project Status: Active Development (v0.3.2)
+> ### Project Status: Active Development (v0.3.3)
 >
 > **Contradiction MCP is currently under active development.** Core multi-format document ingestion (Markdown, RFC822 `.eml`, OpenXML `.docx`, and JSON) and cross-document contradiction discovery are operational and verified. Heuristic classifiers, deep JSON scoping, and public APIs are actively evolving prior to v1.0.0.
 
