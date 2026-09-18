@@ -458,13 +458,67 @@ export class ValueComparator {
     const qA = this.normalizeQuantity(a);
     const qB = this.normalizeQuantity(b);
 
-    if (qA && qB && qA.unit && qB.unit && qA.unit === qB.unit) {
+    if (qA && qB) {
+      // Both have recognized units
+      if (qA.unit && qB.unit) {
+        if (qA.unit === qB.unit) {
+          const equal = Math.abs(qA.amount - qB.amount) < 0.000001;
+          return {
+            comparable: true,
+            equal,
+            normalizedA: qA.display,
+            normalizedB: qB.display,
+            valueType,
+            differenceStrength: equal ? 0.0 : 0.85,
+            differenceType: equal ? undefined : 'NUMERIC_MISMATCH',
+            details: {
+              numberA: qA.amount,
+              numberB: qB.amount,
+              difference: Math.abs(qA.amount - qB.amount),
+            },
+          };
+        } else {
+          // Different unit dimensions (e.g. bytes vs ms)
+          return {
+            comparable: true,
+            equal: false,
+            normalizedA: qA.display,
+            normalizedB: qB.display,
+            valueType,
+            differenceStrength: 1.0,
+            differenceType: 'UNIT_DIMENSION_MISMATCH',
+            details: {
+              unitA: qA.unit,
+              unitB: qB.unit,
+            },
+          };
+        }
+      }
+
+      // One has a unit, the other is unitless (e.g. "1000" vs "1000 ms")
+      if ((qA.unit && !qB.unit) || (!qA.unit && qB.unit)) {
+        return {
+          comparable: true,
+          equal: false,
+          normalizedA: qA.display,
+          normalizedB: qB.display,
+          valueType,
+          differenceStrength: 0.9,
+          differenceType: 'UNIT_MISMATCH',
+          details: {
+            unitA: qA.unit,
+            unitB: qB.unit,
+          },
+        };
+      }
+
+      // Neither has a unit: compare bare numeric amounts
       const equal = Math.abs(qA.amount - qB.amount) < 0.000001;
       return {
         comparable: true,
         equal,
-        normalizedA: qA.display,
-        normalizedB: qB.display,
+        normalizedA: String(qA.amount),
+        normalizedB: String(qB.amount),
         valueType,
         differenceStrength: equal ? 0.0 : 0.85,
         differenceType: equal ? undefined : 'NUMERIC_MISMATCH',

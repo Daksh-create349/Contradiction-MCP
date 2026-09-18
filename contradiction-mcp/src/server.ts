@@ -46,7 +46,7 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
 
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
-  const version = options.version || '0.3.1';
+  const version = options.version || '0.3.2';
 
   const reviewService =
     options.reviewService ?? (options.dbManager ? new ReviewService(options.dbManager) : undefined);
@@ -1404,7 +1404,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         runDiscovery: args.runDiscovery,
       };
     } else if (toolName === 'sync_sources') {
-      request.params.name = 'sync_source';
+      request.params.name = 'contradiction.sources.sync';
       request.params.arguments = {
         connector: 'document',
         source: 'batch',
@@ -1440,7 +1440,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         explainContext: true,
       };
     } else if (toolName === 'review_contradiction') {
-      request.params.name = 'resolve_contradiction';
+      request.params.name = 'contradiction.conflicts.resolve';
       request.params.arguments = {
         contradictionId: args.contradictionId,
         action: 'REVIEW',
@@ -1448,7 +1448,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         notes: args.notes,
       };
     } else if (toolName === 'dismiss_contradiction') {
-      request.params.name = 'resolve_contradiction';
+      request.params.name = 'contradiction.conflicts.resolve';
       request.params.arguments = {
         contradictionId: args.contradictionId,
         action: 'DISMISS',
@@ -1457,7 +1457,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
         notes: args.notes,
       };
     } else if (toolName === 'reopen_contradiction') {
-      request.params.name = 'resolve_contradiction';
+      request.params.name = 'contradiction.conflicts.resolve';
       request.params.arguments = {
         contradictionId: args.contradictionId,
         action: 'REOPEN',
@@ -1466,17 +1466,22 @@ export function createMcpServer(options: ServerOptions): McpServer {
         notes: args.notes,
       };
     } else if (toolName === 'get_contradiction_history') {
-      request.params.name = 'get_contradiction';
+      request.params.name = 'contradiction.conflicts.get';
       request.params.arguments = {
         contradictionId: args.contradictionId,
         includeAuditHistory: true,
       };
     } else if (toolName === 'get_claim_history') {
-      request.params.name = 'get_claim';
+      request.params.name = 'contradiction.claims.get';
       request.params.arguments = {
         claimId: args.claimId,
         includeHistory: true,
       };
+    }
+
+    // Safety fallback: if request.params.name is still in canonicalMap, map to dot notation
+    if (canonicalMap[request.params.name]) {
+      request.params.name = canonicalMap[request.params.name];
     }
 
     return canonicalCallHandler(request, ctx);

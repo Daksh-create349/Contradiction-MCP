@@ -26,6 +26,19 @@ export interface WebsiteRawData {
   extractedLines: string[];
 }
 
+export function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData> {
   public readonly type = 'website' as const;
   public readonly metadata: ConnectorMetadata = {
@@ -279,11 +292,11 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
                 method = 'prose_heuristic';
               } else {
                 const proseDbMatch = line.match(
-                  /(?:requires|uses|connects\s+to)\s+(postgres(?:ql)?|mysql|redis|mongodb|sqlite)\s+(?:database|db)?/i,
+                  /(?:uses|requires|backend)\s+(?:database\s+)?(postgres|postgresql|mysql|sqlite|redis|mongodb)/i,
                 );
                 if (proseDbMatch) {
                   rawKey = 'database';
-                  rawVal = proseDbMatch[1].trim();
+                  rawVal = proseDbMatch[1].toLowerCase().trim();
                   method = 'prose_heuristic';
                 }
               }
@@ -292,30 +305,26 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
         }
       }
 
-      if (
-        rawKey &&
-        rawVal &&
-        rawKey.length > 2 &&
-        rawVal.length > 0 &&
-        !rawVal.startsWith('http')
-      ) {
-        const externalId = crypto
+      if (rawKey && rawVal) {
+        const valType = inferClaimValueType(rawKey, rawVal);
+        const claimExtId = `claim:website:${crypto
           .createHash('sha256')
-          .update(`website:${url}:${rawKey}:${rawVal}:${i}`)
-          .digest('hex');
-        const valueType = inferClaimValueType(rawKey, rawVal);
+          .update(`${url}:${rawKey}:${rawVal}`)
+          .digest('hex')
+          .substring(0, 16)}`;
 
         claims.push({
           subject,
           predicate: rawKey,
           value: rawVal,
-          valueType,
+          valueType: valType,
+          confidence: method === 'prose_heuristic' ? 0.85 : 0.95,
           environment: env,
           scope,
           sourceRole: 'documentation',
           isHistorical: false,
           observedAt: new Date(),
-          externalId,
+          externalId: claimExtId,
           provenance: {
             connector: 'website',
             url,
@@ -334,7 +343,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
 
   private extractTitle(html: string): string {
     const match = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
-    return match ? match[1].trim() : '';
+    return match ? decodeHtmlEntities(match[1].trim()) : '';
   }
 
   private extractCleanLines(html: string): string[] {
@@ -349,7 +358,8 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
       const cellRegex = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
       let cellMatch;
       while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
-        const text = cellMatch[1].replace(/<[^>]+>/g, ' ').trim();
+        const rawText = cellMatch[1].replace(/<[^>]+>/g, ' ').trim();
+        const text = decodeHtmlEntities(rawText).trim();
         if (text) cells.push(text);
       }
       if (cells.length >= 2) {
@@ -358,7 +368,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
       return '\n' + cells.join(' ') + '\n';
     });
 
-    const stripped = cleaned.replace(/<[^>]+>/g, '\n');
+    const stripped = decodeHtmlEntities(cleaned.replace(/<[^>]+>/g, '\n'));
 
     return stripped
       .split(/\r?\n/)

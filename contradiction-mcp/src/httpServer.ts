@@ -50,8 +50,13 @@ export class McpHttpServer {
 
     this.httpServer = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
       const startTime = performance.now();
-      const clientIp = req.socket.remoteAddress || 'unknown';
-      const url = req.url || '/';
+      const forwarded = req.headers['x-forwarded-for'];
+      const clientIp =
+        (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : undefined) ||
+        req.socket.remoteAddress ||
+        'unknown';
+      const parsedUrl = new URL(req.url || '/', 'http://localhost');
+      const pathname = parsedUrl.pathname;
 
       // Security and Cross-Origin Resource Sharing (CORS) Headers
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -100,7 +105,7 @@ export class McpHttpServer {
           apiKeyHeader ||
           (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null);
 
-        if (token !== this.apiKey && url !== '/health' && url !== '/ready') {
+        if (token !== this.apiKey && pathname !== '/health' && pathname !== '/ready') {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Unauthorized: Invalid or missing API key' }));
           return;
@@ -109,7 +114,7 @@ export class McpHttpServer {
 
       // 1. Health endpoint (Liveness)
       if (
-        (url === '/health' || url === '/status') &&
+        (pathname === '/health' || pathname === '/status') &&
         (req.method === 'GET' || req.method === 'HEAD')
       ) {
         try {
@@ -131,7 +136,7 @@ export class McpHttpServer {
       }
 
       // 2. Readiness endpoint
-      if (url === '/ready' && (req.method === 'GET' || req.method === 'HEAD')) {
+      if (pathname === '/ready' && (req.method === 'GET' || req.method === 'HEAD')) {
         try {
           const readiness = this.healthService.getReadiness();
           res.writeHead(readiness.status === 'ready' ? 200 : 503, {
@@ -151,7 +156,7 @@ export class McpHttpServer {
       }
 
       // 3. Metrics endpoint (Observability)
-      if (url === '/metrics' && (req.method === 'GET' || req.method === 'HEAD')) {
+      if (pathname === '/metrics' && (req.method === 'GET' || req.method === 'HEAD')) {
         const snapshot = globalMetrics.getSnapshot();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         if (req.method === 'HEAD') {
@@ -163,11 +168,14 @@ export class McpHttpServer {
       }
 
       // 4. MCP Streamable HTTP endpoint (/mcp or root)
-      if (url.startsWith('/mcp') || url === '/') {
+      if (pathname.startsWith('/mcp') || pathname === '/') {
         try {
           await this.transport!.handleRequest(req, res);
           const duration = Math.round(performance.now() - startTime);
-          logger.debug('Handled MCP Streamable HTTP request', { url, durationMs: duration });
+          logger.debug('Handled MCP Streamable HTTP request', {
+            pathname,
+            durationMs: duration,
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           logger.error('Error handling MCP Streamable HTTP request', { error: msg });
@@ -181,7 +189,7 @@ export class McpHttpServer {
 
       // 404 for other paths
       res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `Not found: ${url}` }));
+      res.end(JSON.stringify({ error: `Not found: ${pathname}` }));
     });
 
     return new Promise((resolve) => {

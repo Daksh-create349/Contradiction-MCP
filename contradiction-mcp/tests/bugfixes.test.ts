@@ -7,7 +7,10 @@ import { ValueComparator } from '../src/analysis/valueComparator.js';
 import { DatabaseManager } from '../src/storage/database.js';
 import { ConnectorRegistry } from '../src/connectors/connectorRegistry.js';
 import { DocumentConnector } from '../src/connectors/document/documentConnector.js';
-import { WebsiteConnector } from '../src/connectors/website/websiteConnector.js';
+import {
+  WebsiteConnector,
+  decodeHtmlEntities,
+} from '../src/connectors/website/websiteConnector.js';
 import { createMcpServer } from '../src/server.js';
 import { HealthService } from '../src/services/healthService.js';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
@@ -359,5 +362,163 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
 
     await client.close();
     await server.close();
+  });
+
+  // Bug Fix: Legacy Routing Shim for Action & History Tools
+  it('Legacy routing shim properly routes review_contradiction, dismiss_contradiction, and get_contradiction_history to dot-notation tools', async () => {
+    const registry = new ConnectorRegistry();
+    const server = createMcpServer({
+      healthService: new HealthService(db, {
+        SERVER_NAME: 'contradiction-mcp',
+        SERVER_VERSION: '0.3.2',
+        NODE_ENV: 'test',
+        port: 3000,
+        env: 'test',
+        logLevel: 'error',
+        maxDbConnections: 1,
+        enableAuth: false,
+        apiKeys: [],
+        jwtSecret: 'test',
+        corsOrigins: [],
+        rateLimitWindowMs: 60000,
+        rateLimitMax: 100,
+      }),
+      dbManager: db,
+      connectorRegistry: registry,
+    });
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: 'test-client', version: '1.0.0' });
+    await client.connect(clientTransport);
+
+    // Setup dummy source, claims, and contradiction
+    const src = db.createSource({ type: 'document', name: 'Test Doc' });
+    const claim1 = db.createClaim({
+      sourceId: src.id,
+      subject: 'api',
+      predicate: 'port',
+      value: '8080',
+      valueType: 'quantity',
+      isHistorical: false,
+      observedAt: new Date(),
+    });
+    const claim2 = db.createClaim({
+      sourceId: src.id,
+      subject: 'api',
+      predicate: 'port',
+      value: '9090',
+      valueType: 'quantity',
+      isHistorical: false,
+      observedAt: new Date(),
+    });
+    const contra = db.createContradiction({
+      claimAId: claim1.id,
+      claimBId: claim2.id,
+      contradictionType: 'CONFIGURATION_MISMATCH',
+      severity: 'HIGH',
+      confidence: 1.0,
+      explanation: 'Conflicting port settings',
+      status: 'OPEN',
+      detectedAt: new Date(),
+    });
+
+    // 1. review_contradiction alias
+    const reviewRes = await client.callTool({
+      name: 'review_contradiction',
+      arguments: {
+        contradictionId: contra.id,
+        reviewedBy: 'test-auditor',
+        notes: 'Review notes',
+      },
+    });
+    expect(reviewRes.isError).toBe(false);
+    const reviewData = JSON.parse((reviewRes.content as Array<{ text: string }>)[0].text);
+    expect(reviewData.status).toBe('REVIEWED');
+
+    // 2. dismiss_contradiction alias
+    const dismissRes = await client.callTool({
+      name: 'dismiss_contradiction',
+      arguments: {
+        contradictionId: contra.id,
+        dismissedBy: 'test-dismiss',
+        reason: 'Known dev exception',
+      },
+    });
+    expect(dismissRes.isError).toBe(false);
+    const dismissData = JSON.parse((dismissRes.content as Array<{ text: string }>)[0].text);
+    expect(dismissData.status).toBe('DISMISSED');
+
+    // 3. reopen_contradiction alias
+    const reopenRes = await client.callTool({
+      name: 'reopen_contradiction',
+      arguments: {
+        contradictionId: contra.id,
+        reopenedBy: 'test-reopen',
+        reason: 'Revisiting decision',
+      },
+    });
+    expect(reopenRes.isError).toBe(false);
+    const reopenData = JSON.parse((reopenRes.content as Array<{ text: string }>)[0].text);
+    expect(reopenData.status).toBe('OPEN');
+
+    // 4. get_contradiction_history alias
+    const historyRes = await client.callTool({
+      name: 'get_contradiction_history',
+      arguments: {
+        contradictionId: contra.id,
+      },
+    });
+    expect(historyRes.isError).toBe(false);
+    const historyData = JSON.parse((historyRes.content as Array<{ text: string }>)[0].text);
+    expect(historyData.contradiction.id).toBe(contra.id);
+    expect(historyData.auditTrail).toBeDefined();
+
+    // 5. get_claim_history alias
+    const claimHistRes = await client.callTool({
+      name: 'get_claim_history',
+      arguments: {
+        claimId: claim1.id,
+      },
+    });
+    expect(claimHistRes.isError).toBe(false);
+    const claimHistData = JSON.parse((claimHistRes.content as Array<{ text: string }>)[0].text);
+    expect(claimHistData.claim.id).toBe(claim1.id);
+    expect(claimHistData.history).toBeDefined();
+
+    await client.close();
+    await server.close();
+  });
+
+  // Bug Fix: ValueComparator Quantity & Unit Safety
+  it('ValueComparator correctly rejects unit dimension mismatches and unitless vs dimensional quantities', () => {
+    const vc = new ValueComparator();
+
+    // Different dimensional units (bytes vs ms)
+    const res1 = vc.compare('1 GB', '1 ms', 'quantity');
+    expect(res1.equal).toBe(false);
+    expect(res1.differenceType).toBe('UNIT_DIMENSION_MISMATCH');
+
+    // Unitless vs dimensional quantity (1000 vs 1000 ms)
+    const res2 = vc.compare('1000', '1000 ms', 'quantity');
+    expect(res2.equal).toBe(false);
+    expect(res2.differenceType).toBe('UNIT_MISMATCH');
+
+    // Same dimensional unit with equivalence (1 GB vs 1024 MB)
+    const res3 = vc.compare('1 GB', '1024 MB', 'quantity');
+    expect(res3.equal).toBe(true);
+
+    // Bare numbers with equivalence (5000 vs 5,000)
+    const res4 = vc.compare('5000', '5,000', 'number');
+    expect(res4.equal).toBe(true);
+  });
+
+  // Bug Fix: HTML Entity Decoding in Website Connector
+  it('decodeHtmlEntities properly decodes common HTML entities safely', () => {
+    expect(decodeHtmlEntities('&gt;= 20.0.0')).toBe('>= 20.0.0');
+    expect(decodeHtmlEntities('Node &amp; Express')).toBe('Node & Express');
+    expect(decodeHtmlEntities('&quot;production&quot;')).toBe('"production"');
+    expect(decodeHtmlEntities('It&#39;s ready')).toBe("It's ready");
+    expect(decodeHtmlEntities('&#60;test&#62;')).toBe('<test>');
   });
 });
