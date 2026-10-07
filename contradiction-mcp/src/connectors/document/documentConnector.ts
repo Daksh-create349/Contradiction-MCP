@@ -267,6 +267,7 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
         scope: input.scope || 'file',
         environment: input.environment || 'unknown',
         sourceRole: input.sourceRole || 'documentation',
+        filesCount: 1,
       },
     };
   }
@@ -530,14 +531,17 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
     method: string,
     observedAt: Date = new Date(),
   ): void {
-    const kvRegex = /^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*(['"]?)([^'"#\r\n]+)\2\s*(?:#.*)?$/;
+    const doubleQuotedRegex = /^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*"([^"#\r\n]*)"\s*(?:#.*)?$/;
+    const singleQuotedRegex = /^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*'([^'#\r\n]*)'\s*(?:#.*)?$/;
+    const unquotedRegex = /^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*([^'"#\r\n]+?)\s*(?:#.*)?$/;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const match = kvRegex.exec(line);
+      const match =
+        doubleQuotedRegex.exec(line) || singleQuotedRegex.exec(line) || unquotedRegex.exec(line);
       if (match) {
         const rawKey = match[1].trim();
-        const rawVal = match[3].trim();
+        const rawVal = match[2].trim();
         if (rawVal.length > 0 && !rawVal.startsWith('{') && !rawVal.startsWith('[')) {
           const predicate = rawKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
           const externalId = createClaimExternalId('document', filePath, predicate, String(i + 1));

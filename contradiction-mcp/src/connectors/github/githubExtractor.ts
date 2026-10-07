@@ -72,7 +72,7 @@ export class GitHubExtractor {
           const lineNum = this.findLineNumber(lines, `"${engineName}"`);
           const evidence = this.extractEvidence(lines, lineNum);
           const rawVal = engineVal.trim();
-          const isRange = /[><=~^\s*|]/.test(rawVal);
+          const isRange = /[><=~^\s*|xX]/.test(rawVal);
 
           claims.push({
             subject,

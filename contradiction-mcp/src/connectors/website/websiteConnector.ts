@@ -205,6 +205,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
           scope: input.scope || 'public_web',
           environment: input.environment || 'production',
           sourceRole: 'documentation',
+          filesCount: 1,
         },
       };
     } catch (error) {

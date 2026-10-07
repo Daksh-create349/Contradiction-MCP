@@ -68,8 +68,13 @@ export class ValueComparator {
     if (this.isLikelyVersion(a) && this.isLikelyVersion(b)) return 'version';
     if (this.isLikelyDate(a) && this.isLikelyDate(b)) return 'date';
     if (this.isLikelyPrice(a) || this.isLikelyPrice(b)) return 'price';
+    if (this.isLikelyBoolean(a) && this.isLikelyBoolean(b)) return 'boolean';
     if (this.isLikelyNumber(a) && this.isLikelyNumber(b)) return 'number';
     return 'string';
+  }
+
+  private isLikelyBoolean(str: string): boolean {
+    return this.normalizeBoolean(str) !== null;
   }
 
   // --- VERSION COMPARISON ---
@@ -144,7 +149,7 @@ export class ValueComparator {
       };
     }
 
-    const rangeRegex = /[><=~^\s*|]/;
+    const rangeRegex = /[><=~^\s*|xX]/;
     const cleanRangeA = this.cleanSemverRange(a);
     const cleanRangeB = this.cleanSemverRange(b);
     const hasRangeOpA = cleanRangeA !== null && rangeRegex.test(cleanRangeA);
@@ -429,7 +434,7 @@ export class ValueComparator {
         return { amount, unit: 'bytes', display: `${amount} B` };
       if (['kb', 'k'].includes(rawUnit))
         return { amount: amount * 1024, unit: 'bytes', display: `${amount} KB` };
-      if (['mb', 'm'].includes(rawUnit))
+      if (['mb', 'mib'].includes(rawUnit))
         return { amount: amount * 1024 * 1024, unit: 'bytes', display: `${amount} MB` };
       if (['gb', 'g'].includes(rawUnit))
         return { amount: amount * 1024 * 1024 * 1024, unit: 'bytes', display: `${amount} GB` };
@@ -560,7 +565,43 @@ export class ValueComparator {
     const normA = a.trim().toLowerCase();
     const normB = b.trim().toLowerCase();
 
-    const equal = normA === normB;
+    // Semantic state equivalence check
+    const affirmative = new Set([
+      'true',
+      'yes',
+      '1',
+      'enabled',
+      'active',
+      'on',
+      'success',
+      'passed',
+      'healthy',
+      'ready',
+      'up',
+      'ok',
+    ]);
+    const negative = new Set([
+      'false',
+      'no',
+      '0',
+      'disabled',
+      'inactive',
+      'off',
+      'failed',
+      'failing',
+      'unhealthy',
+      'down',
+    ]);
+
+    let equal = normA === normB;
+    if (!equal) {
+      if (affirmative.has(normA) && affirmative.has(normB)) {
+        equal = true;
+      } else if (negative.has(normA) && negative.has(normB)) {
+        equal = true;
+      }
+    }
+
     return {
       comparable: true,
       equal,

@@ -521,4 +521,113 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
     expect(decodeHtmlEntities('It&#39;s ready')).toBe("It's ready");
     expect(decodeHtmlEntities('&#60;test&#62;')).toBe('<test>');
   });
+
+  // Bug Fix: SemVer Wildcard Range Invalidation (20.x, 1.X)
+  it('ValueComparator satisfies concrete versions against wildcard x/X ranges', () => {
+    const vc = new ValueComparator();
+    const res1 = vc.compare('20.x', '20.10.0', 'version');
+    expect(res1.compatible).toBe(true);
+    expect(res1.differenceStrength).toBe(0.0);
+    expect(res1.differenceType).toBe('RANGE_SATISFIED');
+
+    const res2 = vc.compare('20.10.0', '20.x', 'version');
+    expect(res2.compatible).toBe(true);
+    expect(res2.differenceStrength).toBe(0.0);
+    expect(res2.differenceType).toBe('RANGE_SATISFIED');
+
+    const res3 = vc.compare('21.0.0', '20.x', 'version');
+    expect(res3.compatible).toBe(false);
+    expect(res3.differenceStrength).toBe(1.0);
+  });
+
+  // Bug Fix: Duration unit 'm' parsed as minutes instead of megabytes
+  it('ValueComparator normalizes m as minutes for durations without byte collisions', () => {
+    const vc = new ValueComparator();
+    const res1 = vc.compare('10m', '600s', 'quantity');
+    expect(res1.equal).toBe(true);
+    expect(res1.differenceStrength).toBe(0.0);
+
+    const res2 = vc.compare('5m', '300000ms', 'quantity');
+    expect(res2.equal).toBe(true);
+
+    const res3 = vc.compare('512MB', '524288KB', 'quantity');
+    expect(res3.equal).toBe(true);
+  });
+
+  // Bug Fix: Status & Boolean Affirmative/Negative Equivalence
+  it('ValueComparator and inferValueType recognize boolean and status equivalences', () => {
+    const vc = new ValueComparator();
+    // Inferred boolean comparison
+    const res1 = vc.compare('true', 'yes');
+    expect(res1.equal).toBe(true);
+    expect(res1.valueType).toBe('boolean');
+
+    // Status affirmative equivalence
+    const res2 = vc.compare('enabled', 'true', 'status');
+    expect(res2.equal).toBe(true);
+    expect(res2.differenceStrength).toBe(0.0);
+
+    // Status negative equivalence
+    const res3 = vc.compare('disabled', 'false', 'status');
+    expect(res3.equal).toBe(true);
+    expect(res3.differenceStrength).toBe(0.0);
+
+    // Status mismatch
+    const res4 = vc.compare('enabled', 'disabled', 'status');
+    expect(res4.equal).toBe(false);
+    expect(res4.differenceStrength).toBe(0.95);
+  });
+
+  // Bug Fix: ClaimMatcher separates base memory from memory limits
+  it('ClaimMatcher separates base ram/memory from memory_limit upper thresholds', async () => {
+    const { claimMatcher } = await import('../src/analysis/claimMatcher.js');
+    const match1 = claimMatcher.match(
+      { subject: 'api_server', predicate: 'ram' },
+      { subject: 'api_server', predicate: 'memory_limit' },
+    );
+    expect(match1.matches).toBe(false);
+
+    const match2 = claimMatcher.match(
+      { subject: 'api_server', predicate: 'ram' },
+      { subject: 'api_server', predicate: 'memory' },
+    );
+    expect(match2.matches).toBe(true);
+
+    const match3 = claimMatcher.match(
+      { subject: 'api_server', predicate: 'max_memory' },
+      { subject: 'api_server', predicate: 'memory_limit' },
+    );
+    expect(match3.matches).toBe(true);
+  });
+
+  // Bug Fix: DocumentConnector YAML quote apostrophe handling
+  it('DocumentConnector extracts YAML and properties lines containing quotes with apostrophes', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'yaml-quote-test-'));
+    const yamlPath = path.join(tmpDir, 'config.yaml');
+    fs.writeFileSync(
+      yamlPath,
+      'title: "Developer\'s Guide"\nquote: \'He said "hi"\'\nport: 8080\n',
+    );
+
+    const connector = new DocumentConnector();
+    const fetchRes = await connector.fetch({ filePath: yamlPath });
+    const claims = await connector.extractClaims(fetchRes);
+
+    const titleClaim = claims.find((c) => c.predicate === 'title');
+    const quoteClaim = claims.find((c) => c.predicate === 'quote');
+    const portClaim = claims.find((c) => c.predicate === 'port');
+
+    expect(titleClaim).toBeDefined();
+    expect(titleClaim?.value).toBe("Developer's Guide");
+    expect(quoteClaim).toBeDefined();
+    expect(quoteClaim?.value).toBe('He said "hi"');
+    expect(portClaim).toBeDefined();
+    expect(portClaim?.value).toBe('8080');
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

@@ -170,7 +170,7 @@ export class SyncService {
         externalId: source.externalId || fetchResult.sourceIdentifier,
       },
       repository: source.name,
-      filesInspected: Number(fetchResult.metadata.filesCount || 0),
+      filesInspected: Number(fetchResult.metadata.filesCount ?? 1),
       claimsExtracted: extractedClaims.length,
       claimsCreated,
       claimsUpdated,
