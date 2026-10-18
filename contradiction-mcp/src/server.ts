@@ -46,7 +46,7 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
 
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
-  const version = options.version || '0.3.4';
+  const version = options.version || '0.3.5';
 
   const reviewService =
     options.reviewService ?? (options.dbManager ? new ReviewService(options.dbManager) : undefined);

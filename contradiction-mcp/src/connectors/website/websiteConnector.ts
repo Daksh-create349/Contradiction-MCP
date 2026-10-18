@@ -82,8 +82,17 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
         const res = await fetch(input.url, {
           method: 'HEAD',
           signal: controller.signal,
-          headers: { 'User-Agent': 'ContradictionMCP/0.1.0' },
+          redirect: 'manual',
+          headers: { 'User-Agent': 'ContradictionMCP/0.3.5' },
         });
+
+        if ([301, 302, 303, 307, 308].includes(res.status)) {
+          const location = res.headers.get('location');
+          if (location) {
+            const redirectUrl = new URL(location, input.url).toString();
+            await validateSafeUrl(redirectUrl);
+          }
+        }
 
         return {
           accessible: res.ok,
@@ -133,7 +142,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
         redirect: 'manual', // Manual redirect check for SSRF on redirect target
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (compatible; ContradictionMCP/0.1.0; +https://github.com/mcp/contradiction)',
+            'Mozilla/5.0 (compatible; ContradictionMCP/0.3.5; +https://github.com/Daksh-create349/Contradiction-MCP)',
           Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9',
         },
       });

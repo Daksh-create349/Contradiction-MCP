@@ -50,7 +50,12 @@ Examples:
   const cwd = process.cwd();
 
   const nodeExecutable = process.execPath;
-  const isGlobalNpx = !fs.existsSync(serverDist);
+  const isLocalDevRepo =
+    fs.existsSync(path.join(projectRoot, '.git')) ||
+    fs.existsSync(path.join(projectRoot, '..', '.git'));
+  const isInstalledPackage =
+    __dirname.includes('node_modules') || __dirname.includes('_npx') || !isLocalDevRepo;
+  const isGlobalNpx = isInstalledPackage || !fs.existsSync(serverDist);
   const stableDbPath = path.join(home, '.contradiction-mcp', 'contradiction.db');
 
   // If installed via npm global or npx, use npx contradiction-mcp as command, else point to local dist/index.js

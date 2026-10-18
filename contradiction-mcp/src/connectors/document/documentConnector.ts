@@ -89,7 +89,12 @@ export class DocumentConnector implements Connector<DocumentInput, DocumentRawDa
 
     if (this.allowedRoots && this.allowedRoots.length > 0) {
       const isAllowed = this.allowedRoots.some((root) => {
-        const resolvedRoot = path.resolve(root);
+        let resolvedRoot: string;
+        try {
+          resolvedRoot = fs.realpathSync(path.resolve(root));
+        } catch {
+          resolvedRoot = path.resolve(root);
+        }
         return realPath === resolvedRoot || realPath.startsWith(resolvedRoot + path.sep);
       });
       if (!isAllowed) {

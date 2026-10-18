@@ -100,8 +100,18 @@ export function calculateCompositeSimilarity(strA: string, strB: string): number
   const tokenSim = calculateTokenSimilarity(normA, normB);
   const editSim = calculateLevenshteinSimilarity(normA, normB);
 
-  // If one contains the other as substring (e.g. "api server" and "api server cluster")
-  if (normA.includes(normB) || normB.includes(normA)) {
+  // If one contains the other as complete word/phrase (e.g. "api server" and "api server cluster")
+  // Ensure word boundaries so "port" does not match "transport" or "cache" in "catchment"
+  const isWordBounded = (shorter: string, longer: string): boolean => {
+    const escaped = shorter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(^|\\s|_|-)${escaped}($|\\s|_|-)`);
+    return regex.test(longer);
+  };
+
+  const aInB = normA.length <= normB.length && isWordBounded(normA, normB);
+  const bInA = normB.length <= normA.length && isWordBounded(normB, normA);
+
+  if (aInB || bInA) {
     const minLen = Math.min(normA.length, normB.length);
     const maxLen = Math.max(normA.length, normB.length);
     const inclusionScore = minLen / maxLen;

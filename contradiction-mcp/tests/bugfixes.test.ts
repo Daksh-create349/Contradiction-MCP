@@ -630,4 +630,40 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  // Bug Fix v0.3.5: calculateCompositeSimilarity word boundary prevents substring collisions
+  it('calculateCompositeSimilarity word boundary prevents substring collisions like port in support', async () => {
+    const { calculateCompositeSimilarity } = await import('../src/analysis/claimMatcher.js');
+    // Substring without word boundary should not get high inclusion or edit similarity
+    expect(calculateCompositeSimilarity('port', 'support')).toBe(0.0);
+    expect(calculateCompositeSimilarity('cache', 'catchment')).toBe(0.0);
+
+    // Bounded phrase inclusion receives proper inclusion score
+    expect(calculateCompositeSimilarity('api server', 'api server cluster')).toBeGreaterThan(0.6);
+  });
+
+  // Bug Fix v0.3.5: DocumentConnector allowedRoots handles symlinks without false denials
+  it('DocumentConnector allowedRoots resolves symlinks cleanly without throwing false access denied', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-allowed-test-'));
+    const testFile = path.join(tmpDir, 'test.txt');
+    fs.writeFileSync(testFile, 'key: value\n');
+
+    // Specify allowedRoots using tmpDir which on macOS may be in /var/... pointing to /private/var/...
+    const connector = new DocumentConnector({ allowedRoots: [tmpDir] });
+    const fetchRes = await connector.fetch({ filePath: testFile });
+    expect(fetchRes.sourceIdentifier).toBeDefined();
+    expect(fetchRes.sourceIdentifier).toContain(testFile);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Bug Fix v0.3.5: SERVER_VERSION defaults to 0.3.5
+  it('SERVER_VERSION configuration and McpServer defaults to v0.3.5', async () => {
+    const { config } = await import('../src/config/env.js');
+    expect(config.SERVER_VERSION).toBe('0.3.5');
+  });
 });

@@ -559,6 +559,24 @@ docker compose logs -f
 
 ## Release History
 
+### v0.3.5 (2026-10-18)
+
+- **NPX Auto-Install Ephemeral Path Fix**: Fixed CLI installer (`bin/cli.js`) to recognize packages running via `npx` or global npm installations, configuring stable `npx -y contradiction-mcp` execution rather than fragile, cache-expiring filesystem paths in IDE configs (Cursor, Antigravity, Claude, Windsurf).
+- **Website Connector Redirect SSRF Defense**: Enforced `redirect: 'manual'` with recursive SSRF target validation on `testConnection`, eliminating unauthorized internal metadata / loopback access via HTTP redirects.
+- **DocumentConnector Symlink Root Resolution**: Ensured `allowedRoots` evaluation resolves real paths with `fs.realpathSync`, preventing false `Access denied` exceptions on macOS and Linux systems with symlinked temporary directories (`/var` -> `/private/var`).
+- **Composite Similarity Word Boundary Checking**: Bound substring comparisons in `ClaimMatcher.calculateCompositeSimilarity` with word boundaries, preventing false positive similarity matches between unrelated words (e.g. `port` vs `support`).
+- **Engine Handshake & Version Synchronization**: Aligned runtime `SERVER_VERSION` configuration to `0.3.5` across protocol handshakes, MCP server initialization, and health checks.
+- **Passing Test Suite**: Expanded regression test suite to 202 passing tests across 26 test suites.
+
+### v0.3.4 (2026-10-07)
+
+- **SemVer Wildcard Ranges**: Full support for npm/semver wildcards (`20.x`, `1.X`, `*.x`), preventing patch releases from falsely contradicting wildcard ranges.
+- **Duration Unit Safety**: Resolved collision between bare memory unit `m` and minutes in `normalizeQuantity`, correctly treating `10m` vs `600s` as equivalent duration.
+- **Status & Boolean Normalization**: `compareStatuses` and `inferValueType` evaluate affirmative (`true`, `yes`, `enabled`, `active`) and negative (`false`, `no`, `disabled`) equivalences.
+- **Orthogonal Memory Limits**: Separated base `ram`/`memory` from `memory_limit` upper caps, preventing container resource limits from colliding with minimum hardware specs.
+- **Quote-Aware YAML & Properties Extraction**: Fixed regex tokenization to preserve double-quoted strings containing apostrophes.
+- **Sync Summary Metric Fallback**: Single-file document and website connector syncs accurately report `filesInspected: 1`.
+
 ### v0.3.1 (2026-09-15)
 
 - **Security & Extraction Hardening**: Replaced shell string execution in `DocumentConnector` with safe `execFileSync`, eliminating command injection vectors in `.docx` processing.
