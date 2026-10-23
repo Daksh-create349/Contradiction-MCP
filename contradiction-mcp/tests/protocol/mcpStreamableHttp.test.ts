@@ -25,10 +25,9 @@ describe('MCP Streamable HTTP Protocol Suite', () => {
     });
 
     healthService = new HealthService(dbManager, config);
-    const server = createMcpServer({ healthService, dbManager });
 
     httpServer = new McpHttpServer({
-      server,
+      serverFactory: () => createMcpServer({ healthService, dbManager }),
       healthService,
       port: 0,
       host: '127.0.0.1',
@@ -151,9 +150,8 @@ describe('MCP Streamable HTTP Protocol Suite', () => {
   });
 
   it('enforces API key authentication when configured', async () => {
-    const authedServer = createMcpServer({ healthService, dbManager });
     const authHttpServer = new McpHttpServer({
-      server: authedServer,
+      serverFactory: () => createMcpServer({ healthService, dbManager }),
       healthService,
       port: 0,
       host: '127.0.0.1',

@@ -182,21 +182,20 @@ async function runSuite() {
     httpRegistry.register(new WebsiteConnector());
     const httpSyncService = new SyncService(httpDbManager, httpRegistry, httpDiscoveryService);
 
-    const httpMcpServer = createMcpServer({
-      name: 'contradiction-http-audit',
-      version: '0.1.0',
-      healthService: httpHealthService,
-      analysisService: httpAnalysisService,
-      discoveryService: httpDiscoveryService,
-      dbManager: httpDbManager,
-      connectorRegistry: httpRegistry,
-      syncService: httpSyncService,
-    });
-
     const testApiKey = 'audit-secret-key-12345';
     const testPort = 3948;
     const httpServer = new McpHttpServer({
-      server: httpMcpServer,
+      serverFactory: () =>
+        createMcpServer({
+          name: 'contradiction-http-audit',
+          version: '0.1.0',
+          healthService: httpHealthService,
+          analysisService: httpAnalysisService,
+          discoveryService: httpDiscoveryService,
+          dbManager: httpDbManager,
+          connectorRegistry: httpRegistry,
+          syncService: httpSyncService,
+        }),
       healthService: httpHealthService,
       port: testPort,
       host: '127.0.0.1',

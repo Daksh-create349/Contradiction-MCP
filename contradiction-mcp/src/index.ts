@@ -85,7 +85,17 @@ async function main(): Promise<void> {
   if (config.MCP_TRANSPORT === 'http') {
     const { McpHttpServer } = await import('./httpServer.js');
     httpServer = new McpHttpServer({
-      server,
+      serverFactory: () =>
+        createMcpServer({
+          healthService,
+          analysisService,
+          discoveryService,
+          dbManager,
+          connectorRegistry,
+          syncService,
+          name: config.SERVER_NAME,
+          version: config.SERVER_VERSION,
+        }),
       healthService,
       port: config.HTTP_PORT,
       host: config.HTTP_HOST,

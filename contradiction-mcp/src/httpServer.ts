@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import http, { IncomingMessage, ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/server';
 import {
@@ -11,7 +12,8 @@ import { globalMetrics } from './services/metricsService.js';
 import { logger } from './utils/logger.js';
 
 export interface HttpServerOptions {
-  server: McpServer;
+  /** Factory called once per MCP session to produce a fresh McpServer instance */
+  serverFactory: () => McpServer;
   healthService: HealthService;
   port: number;
   host: string;
@@ -21,16 +23,17 @@ export interface HttpServerOptions {
 
 export class McpHttpServer {
   private httpServer: http.Server | null = null;
-  private readonly server: McpServer;
+  private readonly serverFactory: () => McpServer;
   private readonly healthService: HealthService;
   private readonly port: number;
   private readonly host: string;
   private readonly apiKey?: string;
   private readonly rateLimiter: RateLimiter;
-  private transport: NodeStreamableHTTPServerTransport | null = null;
+  /** Session ID → transport for that session */
+  private readonly sessions = new Map<string, NodeStreamableHTTPServerTransport>();
 
   constructor(options: HttpServerOptions) {
-    this.server = options.server;
+    this.serverFactory = options.serverFactory;
     this.healthService = options.healthService;
     this.port = options.port;
     this.host = options.host;
@@ -39,12 +42,6 @@ export class McpHttpServer {
   }
 
   public async start(): Promise<void> {
-    this.transport = new NodeStreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless Streamable HTTP
-    });
-
-    await this.server.connect(this.transport);
-
     const validateHost = localhostHostValidation();
     const validateOrigin = localhostOriginValidation();
 
@@ -61,7 +58,7 @@ export class McpHttpServer {
 
       // Security and Cross-Origin Resource Sharing (CORS) Headers
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD, DELETE');
       res.setHeader(
         'Access-Control-Allow-Headers',
         'Content-Type, Authorization, x-api-key, Accept, mcp-session-id, Last-Event-ID',
@@ -171,7 +168,8 @@ export class McpHttpServer {
       // 4. MCP Streamable HTTP endpoint (/mcp or root)
       if (pathname.startsWith('/mcp') || pathname === '/') {
         try {
-          await this.transport!.handleRequest(req, res);
+          const transport = await this.getOrCreateTransport(req);
+          await transport.handleRequest(req, res);
           const duration = Math.round(performance.now() - startTime);
           logger.debug('Handled MCP Streamable HTTP request', {
             pathname,
@@ -208,6 +206,42 @@ export class McpHttpServer {
     });
   }
 
+  /**
+   * Returns the transport for an existing session (via mcp-session-id header),
+   * or creates a fresh server+transport pair for a new initialize request.
+   */
+  private async getOrCreateTransport(
+    req: IncomingMessage,
+  ): Promise<NodeStreamableHTTPServerTransport> {
+    const sessionIdHeader = req.headers['mcp-session-id'];
+    const existingSessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+
+    if (existingSessionId && this.sessions.has(existingSessionId)) {
+      return this.sessions.get(existingSessionId)!;
+    }
+
+    // New session — create a dedicated server + transport pair
+    const sessionServer = this.serverFactory();
+    const transport = new NodeStreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (sessionId) => {
+        this.sessions.set(sessionId, transport);
+        logger.debug('MCP session initialized', { sessionId });
+      },
+    });
+
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) {
+        this.sessions.delete(sid);
+        logger.debug('MCP session closed', { sessionId: sid });
+      }
+    };
+
+    await sessionServer.connect(transport);
+    return transport;
+  }
+
   public getPort(): number {
     const address = this.httpServer?.address();
     if (address && typeof address === 'object') {
@@ -225,9 +259,10 @@ export class McpHttpServer {
         this.httpServer!.close(() => resolve());
       });
     }
-    if (this.transport) {
-      await this.transport.close();
-    }
+    // Close all active sessions
+    const closePromises = Array.from(this.sessions.values()).map((t) => t.close().catch(() => {}));
+    await Promise.all(closePromises);
+    this.sessions.clear();
     logger.info('Contradiction MCP HTTP Server stopped');
   }
 }
