@@ -553,6 +553,13 @@ docker compose logs -f
 
 ## Release History
 
+### v0.3.6 (2026-10-23)
+
+- **Configurable HTTP Rate Limits**: Apply `RATE_LIMIT_PER_MINUTE` to Streamable HTTP requests instead of always using the hard-coded default of 60 requests per minute.
+- **Bounded Rate Limiter Memory**: Periodically remove expired client entries so high client churn cannot leave stale IP keys in a long-running server.
+- **Version Synchronization**: Use one package version constant for MCP server metadata, health configuration defaults, and website connector User-Agent headers.
+- **Verification**: Typecheck, lint, and all 202 tests pass across 26 test suites.
+
 ### v0.3.5 (2026-10-18)
 
 - **NPX Auto-Install Ephemeral Path Fix**: Fixed CLI installer (`bin/cli.js`) to recognize packages running via `npx` or global npm installations, configuring stable `npx -y contradiction-mcp` execution rather than fragile, cache-expiring filesystem paths in IDE configs (Cursor, Antigravity, Claude, Windsurf).
@@ -560,7 +567,7 @@ docker compose logs -f
 - **DocumentConnector Symlink Root Resolution**: Ensured `allowedRoots` evaluation resolves real paths with `fs.realpathSync`, preventing false `Access denied` exceptions on macOS and Linux systems with symlinked temporary directories (`/var` -> `/private/var`).
 - **Composite Similarity Word Boundary Checking**: Bound substring comparisons in `ClaimMatcher.calculateCompositeSimilarity` with word boundaries, preventing false positive similarity matches between unrelated words (e.g. `port` vs `support`).
 - **Engine Handshake & Version Synchronization**: Aligned runtime `SERVER_VERSION` configuration to `0.3.5` across protocol handshakes, MCP server initialization, and health checks.
-- **Passing Test Suite**: Expanded regression test suite to 202 passing tests across 26 test suites.
+- **Passing Test Suite**: Regression test suite reports 202 passing tests across 26 test suites.
 
 ### v0.3.4 (2026-10-07)
 

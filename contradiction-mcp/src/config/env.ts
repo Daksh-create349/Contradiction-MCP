@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { ConfigurationError } from '../domain/types/common.js';
+import { PACKAGE_VERSION } from './version.js';
 
 process.env.DOTENV_CONFIG_QUIET = 'true';
 dotenv.config({ quiet: true });
@@ -28,7 +29,7 @@ const EnvSchema = z.object({
   DATABASE_PATH: z.string().min(1).default(getDefaultDatabasePath()),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   SERVER_NAME: z.string().min(1).default('contradiction-mcp'),
-  SERVER_VERSION: z.string().min(1).default('0.3.5'),
+  SERVER_VERSION: z.string().min(1).default(PACKAGE_VERSION),
   GITHUB_TOKEN: z.string().optional(),
   MCP_TRANSPORT: z.enum(['stdio', 'http']).default('stdio'),
   HTTP_HOST: z.string().default('0.0.0.0'),

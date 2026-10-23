@@ -6,6 +6,7 @@ import { DEFAULT_READ_ONLY_SECURITY, ConnectorSecurityDescriptor } from '../base
 import { inferClaimValueType } from '../base/connectorUtils.js';
 import { validateSafeUrl, SsrfError } from './ssrfGuard.js';
 import { logger } from '../../utils/logger.js';
+import { PACKAGE_VERSION } from '../../config/version.js';
 
 export interface WebsiteInput {
   url: string;
@@ -83,7 +84,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
           method: 'HEAD',
           signal: controller.signal,
           redirect: 'manual',
-          headers: { 'User-Agent': 'ContradictionMCP/0.3.5' },
+          headers: { 'User-Agent': `ContradictionMCP/${PACKAGE_VERSION}` },
         });
 
         if ([301, 302, 303, 307, 308].includes(res.status)) {
@@ -141,8 +142,7 @@ export class WebsiteConnector implements Connector<WebsiteInput, WebsiteRawData>
         signal: controller.signal,
         redirect: 'manual', // Manual redirect check for SSRF on redirect target
         headers: {
-          'User-Agent':
-            'Mozilla/5.0 (compatible; ContradictionMCP/0.3.5; +https://github.com/Daksh-create349/Contradiction-MCP)',
+          'User-Agent': `Mozilla/5.0 (compatible; ContradictionMCP/${PACKAGE_VERSION}; +https://github.com/Daksh-create349/Contradiction-MCP)`,
           Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9',
         },
       });

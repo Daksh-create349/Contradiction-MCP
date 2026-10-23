@@ -12,6 +12,7 @@ import { DocumentConnector } from './connectors/document/documentConnector.js';
 import { WebsiteConnector } from './connectors/website/websiteConnector.js';
 import { SyncService } from './connectors/syncService.js';
 import { createMcpServer } from './server.js';
+import { RateLimiter } from './services/rateLimiter.js';
 
 async function main(): Promise<void> {
   logger.info('Starting Contradiction MCP server...', {
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
       port: config.HTTP_PORT,
       host: config.HTTP_HOST,
       apiKey: config.API_KEY,
+      rateLimiter: new RateLimiter({ windowMs: 60_000, maxRequests: config.RATE_LIMIT_PER_MINUTE }),
     });
     await httpServer.start();
   } else {

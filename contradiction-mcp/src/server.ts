@@ -15,6 +15,7 @@ import { RateLimiter } from './services/rateLimiter.js';
 import { logger } from './utils/logger.js';
 import { NotFoundError, AuthorizationError, toSafeError } from './domain/types/common.js';
 import { ContradictionSeverities, ContradictionStatuses } from './domain/entities/contradiction.js';
+import { PACKAGE_VERSION } from './config/version.js';
 
 export type AuthScope = 'read' | 'analyze' | 'sync' | 'review' | 'resolve' | 'admin';
 
@@ -46,7 +47,7 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
 
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
-  const version = options.version || '0.3.5';
+  const version = options.version || PACKAGE_VERSION;
 
   const reviewService =
     options.reviewService ?? (options.dbManager ? new ReviewService(options.dbManager) : undefined);

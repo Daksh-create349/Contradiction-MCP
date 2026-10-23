@@ -661,9 +661,9 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  // Bug Fix v0.3.5: SERVER_VERSION defaults to 0.3.5
-  it('SERVER_VERSION configuration and McpServer defaults to v0.3.5', async () => {
+  // Bug Fix v0.3.6: SERVER_VERSION follows the package version.
+  it('SERVER_VERSION configuration defaults to the current package version', async () => {
     const { config } = await import('../src/config/env.js');
-    expect(config.SERVER_VERSION).toBe('0.3.5');
+    expect(config.SERVER_VERSION).toBe('0.3.6');
   });
 });

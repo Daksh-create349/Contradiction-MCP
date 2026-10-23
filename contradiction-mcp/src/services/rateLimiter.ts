@@ -16,6 +16,7 @@ export class RateLimiter {
   private readonly hits = new Map<string, number[]>();
   private readonly windowMs: number;
   private readonly maxRequests: number;
+  private checksSinceCleanup = 0;
 
   constructor(options: RateLimiterOptions = { windowMs: 60000, maxRequests: 60 }) {
     this.windowMs = options.windowMs;
@@ -28,6 +29,16 @@ export class RateLimiter {
    */
   public check(key: string): void {
     const now = Date.now();
+    // Periodically discard inactive keys so clients with changing IPs cannot
+    // grow this in-memory limiter without bound.
+    if (++this.checksSinceCleanup >= 256) {
+      for (const [trackedKey, timestamps] of this.hits) {
+        if (!timestamps.some((timestamp) => now - timestamp < this.windowMs)) {
+          this.hits.delete(trackedKey);
+        }
+      }
+      this.checksSinceCleanup = 0;
+    }
     const timestamps = this.hits.get(key) || [];
     const recent = timestamps.filter((t) => now - t < this.windowMs);
 
