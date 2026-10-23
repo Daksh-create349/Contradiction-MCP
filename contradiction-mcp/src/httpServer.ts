@@ -51,8 +51,9 @@ export class McpHttpServer {
     this.httpServer = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
       const startTime = performance.now();
       const forwarded = req.headers['x-forwarded-for'];
+      const rawForwarded = Array.isArray(forwarded) ? forwarded[0] : forwarded;
       const clientIp =
-        (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : undefined) ||
+        (typeof rawForwarded === 'string' ? rawForwarded.split(',')[0].trim() : undefined) ||
         req.socket.remoteAddress ||
         'unknown';
       const parsedUrl = new URL(req.url || '/', 'http://localhost');

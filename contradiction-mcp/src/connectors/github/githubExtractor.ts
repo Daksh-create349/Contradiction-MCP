@@ -108,6 +108,8 @@ export class GitHubExtractor {
       { name: 'next', predicate: 'next_version' },
       { name: 'express', predicate: 'express_version' },
       { name: '@modelcontextprotocol/sdk', predicate: 'mcp_sdk_version' },
+      { name: '@modelcontextprotocol/server', predicate: 'mcp_server_version' },
+      { name: '@modelcontextprotocol/client', predicate: 'mcp_client_version' },
     ];
 
     const prodDeps = (pkg.dependencies as Record<string, unknown>) || {};
@@ -120,7 +122,7 @@ export class GitHubExtractor {
         const lineNum = this.findLineNumber(lines, `"${dep.name}"`);
         const evidence = this.extractEvidence(lines, lineNum);
         const rawVal = versionVal.trim();
-        const isRange = /[><=~^\s*|]/.test(rawVal);
+        const isRange = /[><=~^\s*|xX]/.test(rawVal);
 
         claims.push({
           subject,
@@ -347,7 +349,7 @@ export class GitHubExtractor {
       if (nodeMatch && !lower.includes('npm')) {
         const rawVersion = nodeMatch[1];
         if (rawVersion !== '0' && !rawVersion.startsWith('202') && !rawVersion.startsWith('199')) {
-          const isRange = /[><=~^\s*|]/.test(line);
+          const isRange = /[><=~^\s*|xX]/.test(line);
           claims.push({
             subject,
             predicate: 'node_version',

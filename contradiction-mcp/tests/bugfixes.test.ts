@@ -666,4 +666,136 @@ describe('Comprehensive Bug Fixes Regression Suite', () => {
     const { config } = await import('../src/config/env.js');
     expect(config.SERVER_VERSION).toBe('0.3.6');
   });
+
+  // Bug Fix v0.3.6: ValueComparator normalizes binary memory units (Ki, Mi, Gi, Ti) and duration days (d, day, days)
+  it('ValueComparator normalizes binary memory units and day durations accurately', async () => {
+    const { ValueComparator } = await import('../src/analysis/valueComparator.js');
+    const comparator = new ValueComparator();
+
+    // 4Gi equals 4GB, 512Mi equals 512MB
+    const memRes1 = comparator.compare('4Gi', '4GB');
+    expect(memRes1.equal).toBe(true);
+
+    const memRes2 = comparator.compare('512Mi', '512MB');
+    expect(memRes2.equal).toBe(true);
+
+    const memRes3 = comparator.compare('1024Ki', '1MB');
+    expect(memRes3.equal).toBe(true);
+
+    // Duration: 1 day equals 24 hours equals 86400 seconds
+    const durRes1 = comparator.compare('1 d', '24 h');
+    expect(durRes1.equal).toBe(true);
+
+    const durRes2 = comparator.compare('7 days', '168 hours');
+    expect(durRes2.equal).toBe(true);
+  });
+
+  // Bug Fix v0.3.6: inferClaimValueType recognizes comma numbers and extended units
+  it('inferClaimValueType recognizes comma numbers, binary memory units, and day durations', async () => {
+    const { inferClaimValueType } = await import('../src/connectors/base/connectorUtils.js');
+
+    expect(inferClaimValueType('connections', '1,000')).toBe('quantity');
+    expect(inferClaimValueType('active_users', '10,000')).toBe('quantity');
+    expect(inferClaimValueType('min_ram', '4Gi')).toBe('quantity');
+    expect(inferClaimValueType('retention', '7 days')).toBe('quantity');
+  });
+
+  // Bug Fix v0.3.6: parseGitHubRepoTarget handles URLs, .git suffixes, and paths
+  it('parseGitHubRepoTarget parses full GitHub URLs, .git suffixes, and owner/repo paths', async () => {
+    const { parseGitHubRepoTarget } = await import('../src/server.js');
+
+    expect(parseGitHubRepoTarget('https://github.com/Daksh-create349/Contradiction-MCP')).toEqual({
+      owner: 'Daksh-create349',
+      repo: 'Contradiction-MCP',
+    });
+    expect(parseGitHubRepoTarget('https://github.com/owner/repo.git')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+    expect(parseGitHubRepoTarget('github.com/owner/repo')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+    expect(parseGitHubRepoTarget('owner/repo')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+    expect(parseGitHubRepoTarget('owner/repo.git')).toEqual({
+      owner: 'owner',
+      repo: 'repo',
+    });
+  });
+
+  // Bug Fix v0.3.6: RateLimiter retry-after is guaranteed to be at least 1 second
+  it('RateLimiter retry-after is guaranteed to be >= 1s', async () => {
+    const { RateLimiter, RateLimitExceededError } = await import('../src/services/rateLimiter.js');
+    const limiter = new RateLimiter({ windowMs: 1000, maxRequests: 1 });
+
+    limiter.check('client-1');
+    try {
+      limiter.check('client-1');
+      expect.fail('Should have thrown RateLimitExceededError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(RateLimitExceededError);
+      expect(
+        (err as InstanceType<typeof RateLimitExceededError>).retryAfterSeconds,
+      ).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  // Bug Fix v0.3.6: ResolutionAdvisor assigns winner details when claimB wins
+  it('ResolutionAdvisor assigns winning claim details in authority and freshness comparisons', async () => {
+    const { ResolutionAdvisor } = await import('../src/intelligence/resolutionAdvisor.js');
+    const advisor = new ResolutionAdvisor();
+
+    const claimA = {
+      id: 'c1',
+      sourceId: 's1',
+      subject: 'server',
+      predicate: 'port',
+      value: '8080',
+      valueType: 'quantity',
+      confidence: 0.8,
+      sourceRole: 'documentation',
+      observedAt: new Date(Date.now() - 30 * 86400 * 1000),
+      createdAt: new Date(),
+      metadata: {},
+    };
+
+    const claimB = {
+      id: 'c2',
+      sourceId: 's2',
+      subject: 'server',
+      predicate: 'port',
+      value: '9000',
+      valueType: 'quantity',
+      confidence: 0.95,
+      sourceRole: 'deployment',
+      observedAt: new Date(),
+      createdAt: new Date(),
+      metadata: { filePath: 'Dockerfile' },
+    };
+
+    const contradiction = {
+      id: 'contra-1',
+      claimAId: 'c1',
+      claimBId: 'c2',
+      contradictionType: 'NUMERIC_VALUE_DISCREPANCY' as const,
+      severity: 'HIGH' as const,
+      confidence: 0.9,
+      explanation: 'Port mismatch',
+      status: 'OPEN' as const,
+      detectedAt: new Date(),
+      metadata: {},
+    };
+
+    const advice = advisor.adviseResolution(
+      contradiction as unknown as Parameters<typeof advisor.adviseResolution>[0],
+      claimA as unknown as Parameters<typeof advisor.adviseResolution>[1],
+      claimB as unknown as Parameters<typeof advisor.adviseResolution>[2],
+    );
+    expect(advice.likelyCurrentClaim).toBe('claimB');
+    expect(advice.authorityComparison.winner).toBe('claimB');
+    expect(advice.authorityComparison.details.breakdown.roleScore).toBe(0.95);
+  });
 });

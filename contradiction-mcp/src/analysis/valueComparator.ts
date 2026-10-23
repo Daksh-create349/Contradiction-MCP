@@ -413,7 +413,7 @@ export class ValueComparator {
   // --- NUMBER / QUANTITY COMPARISON ---
 
   private isLikelyNumber(str: string): boolean {
-    return /^[-+]?[\d,]+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|ms|s|sec|m|min|h|hr|hours)?$/i.test(
+    return /^[-+]?[\d,]+(?:\.\d+)?\s*(?:b|bytes?|kb|kib|ki|k|mb|mib|mi|m|gb|gib|gi|g|tb|tib|ti|t|ms|millisecond|milliseconds|s|sec|second|seconds|min|minute|minutes|h|hr|hour|hours|d|day|days)?$/i.test(
       str.trim(),
     );
   }
@@ -432,13 +432,13 @@ export class ValueComparator {
     if (rawUnit) {
       if (['b', 'bytes', 'byte'].includes(rawUnit))
         return { amount, unit: 'bytes', display: `${amount} B` };
-      if (['kb', 'k'].includes(rawUnit))
+      if (['kb', 'k', 'kib', 'ki'].includes(rawUnit))
         return { amount: amount * 1024, unit: 'bytes', display: `${amount} KB` };
-      if (['mb', 'mib'].includes(rawUnit))
+      if (['mb', 'mib', 'mi'].includes(rawUnit))
         return { amount: amount * 1024 * 1024, unit: 'bytes', display: `${amount} MB` };
-      if (['gb', 'g'].includes(rawUnit))
+      if (['gb', 'g', 'gib', 'gi'].includes(rawUnit))
         return { amount: amount * 1024 * 1024 * 1024, unit: 'bytes', display: `${amount} GB` };
-      if (['tb', 't'].includes(rawUnit))
+      if (['tb', 't', 'tib', 'ti'].includes(rawUnit))
         return {
           amount: amount * 1024 * 1024 * 1024 * 1024,
           unit: 'bytes',
@@ -454,6 +454,8 @@ export class ValueComparator {
         return { amount: amount * 60 * 1000, unit: 'ms', display: `${amount} min` };
       if (['h', 'hr', 'hour', 'hours'].includes(rawUnit))
         return { amount: amount * 3600 * 1000, unit: 'ms', display: `${amount} h` };
+      if (['d', 'day', 'days'].includes(rawUnit))
+        return { amount: amount * 86400 * 1000, unit: 'ms', display: `${amount} d` };
     }
 
     return { amount, unit: rawUnit, display: String(amount) };

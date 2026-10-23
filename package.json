@@ -19,8 +19,8 @@
   ],
   "author": "Daksh Srivastava",
   "scripts": {
-    "build": "pnpm -C contradiction-mcp run build",
-    "start": "pnpm -C contradiction-mcp run start",
+    "build": "npm --prefix contradiction-mcp run build",
+    "start": "npm --prefix contradiction-mcp run start",
     "dev": "npm --prefix contradiction-mcp run dev",
     "typecheck": "npm --prefix contradiction-mcp run typecheck",
     "lint": "npm --prefix contradiction-mcp run lint",

@@ -45,6 +45,22 @@ function checkScope(scope: AuthScope, options: ServerOptions): void {
   }
 }
 
+export function parseGitHubRepoTarget(target: string): { owner: string; repo: string } {
+  const cleaned = (target || '')
+    .trim()
+    .replace(/\.git$/i, '')
+    .replace(/^\/+|\/+$/g, '');
+  const urlMatch = cleaned.match(/github\.com[/:]([^/]+)\/([^/]+)$/i);
+  if (urlMatch) {
+    return { owner: urlMatch[1], repo: urlMatch[2] };
+  }
+  const parts = cleaned.split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    return { owner: parts[parts.length - 2], repo: parts[parts.length - 1] };
+  }
+  return { owner: parts[0] || '', repo: parts[1] || '' };
+}
+
 export function createMcpServer(options: ServerOptions): McpServer {
   const name = options.name || 'contradiction-mcp';
   const version = options.version || PACKAGE_VERSION;
@@ -303,9 +319,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
       try {
         metricsService.recordToolCall('test_connection');
         if (args.connector === 'github') {
-          const parts = args.target.split('/');
-          const owner = parts[0] || '';
-          const repo = parts[1] || '';
+          const { owner, repo } = parseGitHubRepoTarget(args.target);
           const connector = options.connectorRegistry?.get('github') as GitHubConnector | undefined;
           if (!connector) throw new NotFoundError('Connector', 'github');
           const result = await connector.testConnection({ owner, repo, branch: args.branch });
@@ -490,10 +504,10 @@ export function createMcpServer(options: ServerOptions): McpServer {
         if (args.input) {
           input = args.input;
         } else if (args.connector === 'github') {
-          const parts = (args.source || '').split('/');
+          const { owner, repo } = parseGitHubRepoTarget(args.source || '');
           input = {
-            owner: parts[0] || '',
-            repo: parts[1] || '',
+            owner,
+            repo,
             branch: args.branch,
           };
         } else if (args.connector === 'website') {

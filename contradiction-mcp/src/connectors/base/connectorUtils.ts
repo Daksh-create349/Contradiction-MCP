@@ -166,7 +166,9 @@ export function inferClaimValueType(predicate: string, value: string): ClaimValu
     pred.includes('capacity') ||
     pred.includes('max_') ||
     pred.includes('min_') ||
-    /^[-+]?\d+(?:\.\d+)?\s*(?:b|kb|mb|gb|tb|ms|s|sec|m|min|h|hr|hours)?$/i.test(val)
+    /^[-+]?[\d,]+(?:\.\d+)?\s*(?:b|bytes?|kb|kib|ki|k|mb|mib|mi|m|gb|gib|gi|g|tb|tib|ti|t|ms|millisecond|milliseconds|s|sec|second|seconds|min|minute|minutes|h|hr|hour|hours|d|day|days)?$/i.test(
+      val,
+    )
   ) {
     return 'quantity';
   }

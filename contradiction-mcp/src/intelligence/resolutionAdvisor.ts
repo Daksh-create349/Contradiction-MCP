@@ -166,13 +166,13 @@ export class ResolutionAdvisor {
         claimAScore: authA.score,
         claimBScore: authB.score,
         winner: authWinner,
-        details: authA,
+        details: authWinner === 'claimB' ? authB : authA,
       },
       freshnessComparison: {
         claimAScore: freshA.score,
         claimBScore: freshB.score,
         winner: freshWinner,
-        details: freshA,
+        details: freshWinner === 'claimB' ? freshB : freshA,
       },
       evidenceComparison: {
         claimAQuality: evidA,

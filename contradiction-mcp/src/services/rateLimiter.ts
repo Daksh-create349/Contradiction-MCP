@@ -44,7 +44,7 @@ export class RateLimiter {
 
     if (recent.length >= this.maxRequests) {
       const oldest = recent[0];
-      const retryAfterSeconds = Math.ceil((this.windowMs - (now - oldest)) / 1000);
+      const retryAfterSeconds = Math.max(1, Math.ceil((this.windowMs - (now - oldest)) / 1000));
       throw new RateLimitExceededError(
         `Operation limit of ${this.maxRequests} requests per ${Math.round(this.windowMs / 1000)}s reached for '${key}'`,
         retryAfterSeconds,
