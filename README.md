@@ -561,10 +561,12 @@ docker compose logs -f
 
 ### v0.3.6 (2026-10-23)
 
-- **Configurable HTTP Rate Limits**: Apply `RATE_LIMIT_PER_MINUTE` to Streamable HTTP requests instead of always using the hard-coded default of 60 requests per minute.
-- **Bounded Rate Limiter Memory**: Periodically remove expired client entries so high client churn cannot leave stale IP keys in a long-running server.
-- **Version Synchronization**: Use one package version constant for MCP server metadata, health configuration defaults, and website connector User-Agent headers.
-- **Verification**: Typecheck, lint, and all 202 tests pass across 26 test suites.
+- **Per-Session Streamable HTTP Server**: Created dedicated `McpServer` and `NodeStreamableHTTPServerTransport` instances per MCP session with stateful session lifecycle routing, eliminating "Server already initialized" errors under multi-client loads with MCP SDK v2.3.x.
+- **Configurable HTTP Rate Limits & Bounded Memory**: Configurable `RATE_LIMIT_PER_MINUTE` for Streamable HTTP requests with automated eviction of expired client buckets under high churn.
+- **Binary Unit & Day Durations**: Added precision normalization for binary storage units (`KiB`, `MiB`, `GiB`, `TiB`) and multi-day (`d`) time duration conversions.
+- **GitHub Target Parsing & Array Forwarded IPs**: Robust parser support for raw GitHub pull request URLs and array-formatted `x-forwarded-for` proxy headers.
+- **Rate Limiter Strict Boundary**: Corrected boundary comparison to ensure exact rate limit ceiling enforcement.
+- **Comprehensive Verification**: All 207 tests passing across 26 test suites with 0 typecheck, lint, or security issues.
 
 ### v0.3.5 (2026-10-18)
 
