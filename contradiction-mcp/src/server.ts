@@ -679,7 +679,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // 6. Tool: analyze_claim_pair
   registerTool(
     'contradiction.claims.analyze',
-    'Performs deep comparative analysis between two factual claims to determine whether they contradict each other. Evaluates semantic meaning, value differences, numeric/temporal ranges, and contextual dimensions (environment divergence, scope, source roles). Returns contradiction classification, severity, confidence score, and detailed explanation. Read-only operation.',
+    'Performs deep comparative analysis between two factual claims to determine whether they contradict each other. Evaluates semantic meaning, value differences, numeric/temporal ranges, and contextual dimensions (environment divergence, scope, source roles). Returns contradiction classification, severity, confidence score, and detailed explanation. Prerequisites: Both claim IDs must already exist in storage (e.g. ingested via sync_sources). Returns an error if either claim is not found. Read-only operation.',
     {
       claimAId: z.string().min(1).describe('The unique ID of the first claim'),
       claimBId: z.string().min(1).describe('The unique ID of the second claim'),
@@ -861,7 +861,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // 8. Tool: get_claim
   registerTool(
     'contradiction.claims.get',
-    'Retrieves complete details for a single factual claim by ID, including its subject, predicate, current and normalized values, provenance evidence, originating source metadata, and chronological historical value transitions over time. Read-only operation.',
+    'Retrieves complete details for a single factual claim by ID, including its subject, predicate, current and normalized values, provenance evidence, originating source metadata, and chronological historical value transitions over time. Prerequisites: The requested claimId must exist in the database; returns a NOT_FOUND error if the claim does not exist. Read-only operation.',
     {
       claimId: z.string().min(1).describe('The unique ID of the claim to retrieve'),
       includeHistory: z
@@ -1063,7 +1063,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // 10. Tool: get_contradiction
   registerTool(
     'contradiction.conflicts.get',
-    'Retrieves complete details of a single contradiction record by ID, including full representations of both conflicting claims, originating source metadata, exact line evidence snippets, and chronological audit trail of all review and resolution actions. Read-only operation.',
+    'Retrieves complete details of a single contradiction record by ID, including full representations of both conflicting claims, originating source metadata, exact line evidence snippets, and chronological audit trail of all review and resolution actions. Prerequisites: The contradictionId must exist; returns a NOT_FOUND error if invalid. Read-only operation.',
     {
       contradictionId: z
         .string()
@@ -1146,7 +1146,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // 11. Tool: advise_resolution
   registerTool(
     'contradiction.conflicts.advise',
-    'Generates deterministic authority, freshness, and evidence comparison between conflicting claims to advise an AI agent or human reviewer on which claim likely represents current truth and recommended remediation steps. Read-only deterministic calculation.',
+    'Generates deterministic authority, freshness, and evidence comparison between conflicting claims to advise an AI agent or human reviewer on which claim likely represents current truth and recommended remediation steps. Prerequisites: The target contradictionId must exist; returns a NOT_FOUND error if invalid. Read-only deterministic calculation.',
     {
       contradictionId: z
         .string()
@@ -1218,7 +1218,7 @@ export function createMcpServer(options: ServerOptions): McpServer {
   // 12. Tool: resolve_contradiction
   registerTool(
     'contradiction.conflicts.resolve',
-    'Updates the lifecycle status and audit trail of a contradiction record. Supports marking as REVIEWED, resolving as RESOLVED with an authoritative chosen claim, dismissing as DISMISSED (acceptable divergence), or reopening back to OPEN. Preserves an immutable audit trail of reviewer identity, decision reason, and timestamp. Mutating operation.',
+    'Updates the lifecycle status and audit trail of a contradiction record. Supports marking as REVIEWED, resolving as RESOLVED with an authoritative chosen claim, dismissing as DISMISSED (acceptable divergence), or reopening back to OPEN. Preserves an immutable audit trail of reviewer identity, decision reason, and timestamp. Prerequisites: The target contradictionId must exist; for RESOLVE action, chosenClaimId must reference one of the two claims in the contradiction. Returns an error if the record is missing or validation fails. Mutating operation.',
     {
       contradictionId: z
         .string()
