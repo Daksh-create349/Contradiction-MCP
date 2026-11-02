@@ -26,7 +26,7 @@
     "live-test": "npm run smoke && vitest run tests/protocol/mcpStreamableHttp.test.ts",
     "verify": "npm run build && tsx src/scripts/comprehensiveVerification.ts",
     "demo": "npm run build && tsx src/scripts/finalLiveDemo.ts",
-    "security:check": "npm audit",
+    "security:check": "npm audit --audit-level=high",
     "install-mcp": "node scripts/install-mcp.js"
   },
   "keywords": [
